@@ -210,15 +210,17 @@ main_menu() {
         echo -e "        ${_green}Hysteria2-LuoPo 管理面板 V1.0${_plain}"
         print_line
         
-        # 状态检测
-        local status="${_red}○ 未运行${_plain}"
         local core_version="未安装"
         if command -v hysteria &> /dev/null; then
-            core_version=$(hysteria version | awk '{print $3}')
+            # 🚀 颜值修复：精准抓取 v2.x.x，无情过滤掉 Hysteria 官方的字符画和乱码
+            core_version=$(hysteria version | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' | head -n 1)
+            [[ -z "$core_version" ]] && core_version="未知版本"
+            
             if systemctl is-active --quiet hysteria-server.service; then
                 status="${_green}● 运行中${_plain}"
             fi
         fi
+        
         
         echo -e "  [状态] Core: ${core_version} | 服务: ${status}"
         print_line
