@@ -1,0 +1,68 @@
+name: Auto Release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'hy2.sh'
+      - 'install.sh'
+  workflow_dispatch: # 手动触发按钮
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # ⚠️关键修复：必须拉取完整历史，否则获取不到之前的 Tag
+
+      - name: Extract Version
+        id: get_version
+        run: |
+          # 从 hy2.sh 中提取 sh_ver 变量的值
+          VERSION=$(grep -oP 'sh_ver="\K[^"]+' hy2.sh | head -n 1 || echo "")
+          
+          if [ -z "$VERSION" ]; then
+            echo "❌ 致命错误：无法在 hy2.sh 中找到 sh_ver 变量！请确保代码中有 sh_ver=\"v1.0.0\" 这样的定义。"
+            exit 1
+          fi
+          
+          echo "成功提取到版本号: $VERSION"
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "none")
+          echo "LATEST_TAG=$LATEST_TAG" >> $GITHUB_ENV
+
+      - name: Check if Release is Needed
+        id: check_release
+        run: |
+          if [ "${{ env.VERSION }}" == "${{ env.LATEST_TAG }}" ]; then
+            echo "版本 ${{ env.VERSION }} 已存在，无需发布新 Release。自动跳过。"
+            echo "should_release=false" >> $GITHUB_ENV
+          else
+            echo "检测到新版本: ${{ env.VERSION }}。准备自动发布！"
+            echo "should_release=true" >> $GITHUB_ENV
+          fi
+
+      - name: Package Code
+        if: env.should_release == 'true'
+        run: |
+          tar --exclude=".git" --exclude=".github" -zcvf ../code.tar.gz .
+          mv ../code.tar.gz ./
+
+      - name: Create Release
+        if: env.should_release == 'true'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            code.tar.gz
+            hy2.sh
+            install.sh
+          tag_name: ${{ env.VERSION }}
+          name: Hysteria2-LuoPo ${{ env.VERSION }}
+          body: "🤖 自动化构建发布版本: ${{ env.VERSION }}\n\n更新内容请参考最新的代码提交记录。"

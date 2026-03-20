@@ -11,6 +11,8 @@ _yellow="\033[0;33m"
 _blue="\033[0;36m"
 _plain="\033[0m"
 
+sh_ver="v1.0.0"  # <--- 加上这一行，以后更新版本只改这里！
+
 HY2_CONF_DIR="/etc/hysteria"
 HY2_CONF_FILE="${HY2_CONF_DIR}/config.yaml"
 HY2_META_FILE="${HY2_CONF_DIR}/meta.info"
