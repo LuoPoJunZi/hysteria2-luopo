@@ -25,8 +25,10 @@ cleanup() {
 trap cleanup EXIT
 
 export HY2_LIB_ONLY=1
+export HY2_LIB_DIR="${ROOT_DIR}/lib/hy2"
 # shellcheck source=../../hy2.sh
 source "${ROOT_DIR}/hy2.sh"
+load_module config
 
 HY2_CONF_DIR="${tmp_dir}/etc-hysteria"
 HY2_CONF_FILE="${HY2_CONF_DIR}/config.yaml"

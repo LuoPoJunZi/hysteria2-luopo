@@ -7,12 +7,14 @@ on:
     paths:
       - 'hy2.sh'
       - 'install.sh'
+      - 'lib/hy2/**'
       - 'README.md'
       - 'CHANGELOG.md'
       - 'scripts/verify.sh'
       - 'scripts/check-menu-sync.sh'
       - 'scripts/check-version-sync.sh'
       - 'scripts/smoke-e2e.sh'
+      - 'scripts/measure-memory.sh'
       - 'tests/**'
       - '.github/workflows/release.yml'
   workflow_dispatch: # 手动触发按钮
@@ -52,7 +54,7 @@ jobs:
           sudo apt-get install -y shellcheck bats
 
       - name: Make verify scripts executable
-        run: chmod +x scripts/verify.sh scripts/check-menu-sync.sh scripts/check-version-sync.sh scripts/smoke-e2e.sh tests/e2e/config-flow.sh
+        run: chmod +x scripts/verify.sh scripts/check-menu-sync.sh scripts/check-version-sync.sh scripts/smoke-e2e.sh scripts/measure-memory.sh tests/e2e/config-flow.sh
 
       - name: Run bash syntax checks
         run: ./scripts/verify.sh syntax
@@ -95,7 +97,7 @@ jobs:
       - name: Generate Checksums
         if: env.should_release == 'true'
         run: |
-          sha256sum code.tar.gz hy2.sh install.sh > SHA256SUMS
+          sha256sum code.tar.gz hy2.sh install.sh lib/hy2/*.sh > SHA256SUMS
 
       - name: Build Release Notes
         if: env.should_release == 'true'
@@ -129,6 +131,7 @@ jobs:
             code.tar.gz
             hy2.sh
             install.sh
+            lib/hy2/*.sh
             SHA256SUMS
           tag_name: ${{ env.VERSION }}
           name: ${{ env.VERSION }}

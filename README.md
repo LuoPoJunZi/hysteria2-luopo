@@ -53,13 +53,16 @@
 
 ```text
 .
-├── hy2.sh                          # 主面板脚本（核心业务逻辑）
-├── install.sh                      # 安装入口脚本（远程拉取 hy2.sh）
+├── hy2.sh                          # 轻量启动器（主菜单 + 按需加载模块）
+├── install.sh                      # 安装入口脚本（远程拉取启动器与模块）
+├── lib/
+│   └── hy2/                        # 面板运行模块（common/core/config/client/diagnostics/backup）
 ├── scripts/
 │   ├── verify.sh                   # 本地/CI 一键检查入口
 │   ├── check-menu-sync.sh          # 菜单与 README 一致性检查
 │   ├── check-version-sync.sh       # 版本号与 README 标识一致性检查
-│   └── smoke-e2e.sh                # 无特权端到端冒烟测试
+│   ├── smoke-e2e.sh                # 无特权端到端冒烟测试
+│   └── measure-memory.sh           # Linux 下测量 hy2 主菜单 RSS
 ├── tests/
 │   ├── e2e/
 │   │   └── config-flow.sh          # 交互配置流程回放测试
@@ -261,17 +264,18 @@ chmod +x scripts/verify.sh
 - `bats` 核心函数回归测试（`tests/unit`）
 - 交互配置流程回放测试（`tests/e2e/config-flow.sh`）
 
-### 10.3 在 `hy2.sh` 新增菜单功能的标准步骤
+### 10.3 新增菜单功能的标准步骤
 
-1. 新增功能函数（例如 `show_xxx`）
-2. 在 `main_menu` 文案里增加菜单项
+1. 在 `lib/hy2/` 对应模块中新增功能函数（例如 `show_xxx`）
+2. 在 `hy2.sh` 的 `main_menu` 文案里增加菜单项
 3. 在 `case` 分支里接入调用
 4. 同步更新 `README.md` 菜单预览
 5. 运行 `./scripts/verify.sh`
 
 ### 10.4 推荐编码约定
 
-- 新功能优先封装成函数，避免把逻辑直接写进 `main_menu`
+- 新功能优先封装到对应模块，避免把逻辑直接写进 `main_menu`
+- 大段模板、诊断和配置流程保持按需加载，避免增加主菜单常驻内存
 - 对外部命令（`systemctl/curl/openssl`）尽量做返回码判断
 - 配置写入后统一做权限收敛
 - 影响服务可用性的改动，优先考虑回滚路径

@@ -2,8 +2,11 @@
 
 setup() {
   export HY2_LIB_ONLY=1
+  export HY2_LIB_DIR="${BATS_TEST_DIRNAME}/../../lib/hy2"
   # shellcheck source=../../hy2.sh
   source "${BATS_TEST_DIRNAME}/../../hy2.sh"
+  load_module config
+  load_module client
 
   TMP_DIR="$(mktemp -d)"
   export HY2_CONF_DIR="${TMP_DIR}/etc-hysteria"

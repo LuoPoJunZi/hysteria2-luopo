@@ -8,10 +8,12 @@ on:
     paths:
       - 'hy2.sh'
       - 'install.sh'
+      - 'lib/hy2/**'
       - 'scripts/verify.sh'
       - 'scripts/check-menu-sync.sh'
       - 'scripts/check-version-sync.sh'
       - 'scripts/smoke-e2e.sh'
+      - 'scripts/measure-memory.sh'
       - 'tests/**'
       - '.github/workflows/lint.yml'
 
@@ -26,7 +28,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y shellcheck bats
 
       - name: Make verify script executable
-        run: chmod +x scripts/verify.sh scripts/check-menu-sync.sh scripts/check-version-sync.sh scripts/smoke-e2e.sh tests/e2e/config-flow.sh
+        run: chmod +x scripts/verify.sh scripts/check-menu-sync.sh scripts/check-version-sync.sh scripts/smoke-e2e.sh scripts/measure-memory.sh tests/e2e/config-flow.sh
 
       - name: Run bash syntax checks
         run: ./scripts/verify.sh syntax
@@ -60,7 +62,7 @@ jobs:
         run: apt-get update && apt-get install -y bash shellcheck bats grep sed gawk coreutils
 
       - name: Make verify script executable
-        run: chmod +x scripts/verify.sh scripts/check-menu-sync.sh scripts/check-version-sync.sh scripts/smoke-e2e.sh tests/e2e/config-flow.sh
+        run: chmod +x scripts/verify.sh scripts/check-menu-sync.sh scripts/check-version-sync.sh scripts/smoke-e2e.sh scripts/measure-memory.sh tests/e2e/config-flow.sh
 
       - name: Run bash syntax checks
         run: ./scripts/verify.sh syntax

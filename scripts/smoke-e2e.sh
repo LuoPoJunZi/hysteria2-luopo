@@ -28,8 +28,24 @@ assert_contains() {
 }
 
 export HY2_LIB_ONLY=1
+export HY2_LIB_DIR="${ROOT_DIR}/lib/hy2"
 # shellcheck source=../hy2.sh
 source "${ROOT_DIR}/hy2.sh"
+
+echo "[INFO] Running module loader checks..."
+[[ "${HY2_MODULE_COMMON_LOADED:-0}" != "1" ]] || fail "common module should not be loaded by launcher"
+load_module config || fail "config module should load"
+[[ "${HY2_MODULE_COMMON_LOADED:-0}" == "1" ]] || fail "config module should load common dependency"
+load_module config || fail "config module should be repeat-load safe"
+load_module client || fail "client module should load"
+saved_lib_dir="${HY2_LIB_DIR}"
+HY2_LIB_DIR="${tmp_dir:-/tmp}/missing-hy2-lib"
+HY2_DISABLE_MODULE_BOOTSTRAP=1
+if load_module diagnostics 2>/dev/null; then
+    fail "missing diagnostics module should fail to load"
+fi
+unset HY2_DISABLE_MODULE_BOOTSTRAP
+HY2_LIB_DIR="${saved_lib_dir}"
 
 __mock_systemctl_mode="always_success"
 __mock_systemctl_calls=0
@@ -68,6 +84,29 @@ HY2_BACKUP_DIR="${HY2_CONF_DIR}/backup"
 HY2_DIAG_DIR="${tmp_dir}"
 HY2_DIAG_LATEST="${HY2_DIAG_DIR}/hy2-diagnose-latest.log"
 mkdir -p "${HY2_CONF_DIR}" "${HY2_BACKUP_DIR}"
+
+echo "[INFO] Running panel bundle install checks..."
+load_module core || fail "core module should load"
+bundle_dir="${tmp_dir}/bundle"
+mkdir -p "${bundle_dir}/lib/hy2"
+cp -f "${ROOT_DIR}/hy2.sh" "${bundle_dir}/hy2.sh"
+for module in $(panel_module_list); do
+    cp -f "${ROOT_DIR}/lib/hy2/${module}.sh" "${bundle_dir}/lib/hy2/${module}.sh"
+done
+verify_downloaded_panel_bundle "${bundle_dir}" || fail "current bundle should validate"
+PANEL_TARGET_BIN="${tmp_dir}/bin/hy2"
+PANEL_TARGET_LIB_DIR="${tmp_dir}/installed-lib"
+install_panel_bundle_from_dir "${bundle_dir}" || fail "panel bundle should install to temp paths"
+[[ -x "${PANEL_TARGET_BIN}" ]] || fail "installed launcher should be executable"
+[[ -f "${PANEL_TARGET_LIB_DIR}/common.sh" ]] || fail "installed common module missing"
+bad_bundle="${tmp_dir}/bad-bundle"
+mkdir -p "${bad_bundle}/lib/hy2"
+cp -f "${ROOT_DIR}/hy2.sh" "${bad_bundle}/hy2.sh"
+if verify_downloaded_panel_bundle "${bad_bundle}"; then
+    fail "incomplete bundle should not validate"
+fi
+HY2_LIB_DIR="${saved_lib_dir}"
+unset PANEL_TARGET_LIB_DIR
 
 echo "[INFO] Running validator checks..."
 is_valid_port "1" || fail "port 1 should be valid"
