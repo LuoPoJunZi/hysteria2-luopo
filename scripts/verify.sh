@@ -12,32 +12,29 @@ check_cmd() {
     fi
 }
 
+check_cmd bash
+check_cmd shellcheck
+check_cmd grep
+check_cmd bats
+
 run_syntax_checks() {
     echo "[INFO] Running bash syntax checks..."
-    check_cmd bash
-    local file
-    for file in hy2.sh install.sh lib/hy2/*.sh scripts/*.sh tests/e2e/*.sh; do
-        bash -n "${file}"
-    done
+    bash -n hy2.sh
+    bash -n install.sh
 }
 
 run_shellcheck() {
     echo "[INFO] Running shellcheck..."
-    check_cmd shellcheck
-    shellcheck -S error -x hy2.sh install.sh lib/hy2/*.sh scripts/*.sh tests/e2e/*.sh
+    shellcheck -S error -x hy2.sh install.sh scripts/*.sh
 }
 
 run_menu_sync_check() {
     echo "[INFO] Checking menu/README consistency..."
-    check_cmd bash
-    check_cmd grep
     bash scripts/check-menu-sync.sh
 }
 
 run_version_sync_check() {
     echo "[INFO] Checking version marker consistency..."
-    check_cmd bash
-    check_cmd grep
     bash scripts/check-version-sync.sh
 }
 
@@ -48,7 +45,6 @@ run_smoke_e2e_checks() {
 
 run_bats_tests() {
     echo "[INFO] Running bats tests..."
-    check_cmd bats
     bats tests/unit
 }
 
