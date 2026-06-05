@@ -257,6 +257,7 @@ chmod +x scripts/verify.sh
 - `shellcheck` 静态检查（error 级）
 - 菜单与 README 预览一致性检查
 - 版本号与 README 标识一致性检查
+- 发布包防污染检查（本地记忆文件、临时目录、已撤销模块化文件）
 - 无特权端到端冒烟测试（配置生成/元数据解析/SNI 选择/分享片段/重启失败回滚）
 - `bats` 核心函数回归测试（`tests/unit`）
 - 交互配置流程回放测试（`tests/e2e/config-flow.sh`）
@@ -283,6 +284,7 @@ chmod +x scripts/verify.sh
 - push 到 `main` 后触发：
   - `Lint`（质量检查）
   - `Auto Release`（自动打包发布）
+- 发布包会额外校验，避免本地记忆文件、临时检查目录或已撤销的模块化文件进入正式 Release。
 
 ---
 

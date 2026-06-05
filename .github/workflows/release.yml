@@ -12,6 +12,7 @@ on:
       - 'scripts/verify.sh'
       - 'scripts/check-menu-sync.sh'
       - 'scripts/check-version-sync.sh'
+      - 'scripts/check-release-package.sh'
       - 'scripts/smoke-e2e.sh'
       - 'tests/**'
       - '.github/workflows/release.yml'
@@ -52,7 +53,7 @@ jobs:
           sudo apt-get install -y shellcheck bats
 
       - name: Make verify scripts executable
-        run: chmod +x scripts/verify.sh scripts/check-menu-sync.sh scripts/check-version-sync.sh scripts/smoke-e2e.sh tests/e2e/config-flow.sh
+        run: chmod +x scripts/verify.sh scripts/check-menu-sync.sh scripts/check-version-sync.sh scripts/check-release-package.sh scripts/smoke-e2e.sh tests/e2e/config-flow.sh
 
       - name: Run bash syntax checks
         run: ./scripts/verify.sh syntax
@@ -65,6 +66,9 @@ jobs:
 
       - name: Check version sync
         run: ./scripts/verify.sh version-sync
+
+      - name: Check release package guardrails
+        run: ./scripts/verify.sh release-package
 
       - name: Run smoke E2E
         run: ./scripts/verify.sh smoke-e2e
@@ -89,8 +93,22 @@ jobs:
       - name: Package Code
         if: env.should_release == 'true'
         run: |
-          tar --exclude=".git" --exclude=".github" -zcvf ../code.tar.gz .
+          tar \
+            --exclude=".git" \
+            --exclude=".github" \
+            --exclude="AGENTS.md" \
+            --exclude="LOCAL_WORK_MEMORY.md" \
+            --exclude="PROJECT_MEMORY.md" \
+            --exclude=".codex-ci-check*" \
+            --exclude="code.tar.gz" \
+            --exclude="SHA256SUMS" \
+            --exclude="RELEASE_BODY.md" \
+            -zcvf ../code.tar.gz .
           mv ../code.tar.gz ./
+
+      - name: Validate Release Package
+        if: env.should_release == 'true'
+        run: bash scripts/check-release-package.sh code.tar.gz
 
       - name: Generate Checksums
         if: env.should_release == 'true'

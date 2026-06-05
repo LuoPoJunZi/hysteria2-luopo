@@ -5,7 +5,7 @@
 # ==========================================
 
 # --- 1. 全局变量与颜色输出 ---
-sh_ver="v1.4.2"
+sh_ver="v1.4.3"
 
 _red="\033[0;31m"
 _green="\033[0;32m"
@@ -22,6 +22,7 @@ HY2_DIAG_DIR="/tmp"
 HY2_DIAG_LATEST="${HY2_DIAG_DIR}/hy2-diagnose-latest.log"
 PANEL_UPDATE_URL="https://raw.githubusercontent.com/LuoPoJunZi/hysteria2-luopo/main/hy2.sh"
 PANEL_TARGET_BIN="/usr/local/bin/hy2"
+PANEL_BACKUP_PREFIX="/usr/local/bin/hy2.bak"
 DEFAULT_PORT=443
 DEFAULT_MASQUERADE_URL="https://bing.com"
 DEFAULT_SELF_SNI="bing.com"
@@ -55,7 +56,7 @@ require_cmd() {
 preflight_check() {
     local missing=0
     local cmd
-    for cmd in curl systemctl openssl grep awk hostname journalctl head mktemp chmod mv; do
+    for cmd in curl systemctl openssl grep awk sed hostname journalctl head mktemp chmod mv cp date; do
         if ! require_cmd "${cmd}"; then
             missing=1
         fi
@@ -567,11 +568,35 @@ install_hy2_core() {
 
 verify_downloaded_panel() {
     local file="$1"
+    local downloaded_version
     [[ -s "${file}" ]] || return 1
     head -n 1 "${file}" | grep -q '^#!/bin/bash' || return 1
     grep -q 'main_menu' "${file}" || return 1
     grep -q 'Hysteria2-LuoPo 管理面板' "${file}" || return 1
+    downloaded_version="$(extract_panel_version "${file}")"
+    [[ -n "${downloaded_version}" ]] || return 1
     return 0
+}
+
+extract_panel_version() {
+    local file="$1"
+    sed -n 's/^sh_ver="\(v[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\)".*/\1/p' "${file}" | head -n 1
+}
+
+backup_existing_panel() {
+    local backup_file
+    backup_file="${PANEL_BACKUP_PREFIX}.$(date '+%Y%m%d-%H%M%S')"
+    if [[ ! -f "${PANEL_TARGET_BIN}" ]]; then
+        return 0
+    fi
+    cp -p "${PANEL_TARGET_BIN}" "${backup_file}" || return 1
+    printf '%s\n' "${backup_file}"
+}
+
+restore_panel_backup() {
+    local backup_file="$1"
+    [[ -n "${backup_file}" && -f "${backup_file}" ]] || return 1
+    cp -p "${backup_file}" "${PANEL_TARGET_BIN}"
 }
 
 update_panel_script() {
@@ -590,6 +615,8 @@ update_panel_script() {
     fi
 
     local tmp_file
+    local backup_file=""
+    local downloaded_version
     tmp_file="$(mktemp /tmp/hy2-panel.XXXXXX)" || {
         err "创建临时文件失败。"
         sleep 2
@@ -611,8 +638,25 @@ update_panel_script() {
         return 1
     fi
 
+    downloaded_version="$(extract_panel_version "${tmp_file}")"
+    msg "已下载版本: ${downloaded_version}"
+
+    if [[ -f "${PANEL_TARGET_BIN}" ]]; then
+        msg "正在备份当前面板脚本..."
+        if ! backup_file="$(backup_existing_panel)"; then
+            rm -f "${tmp_file}"
+            err "备份当前脚本失败，已停止更新。"
+            sleep 2
+            return 1
+        fi
+        [[ -n "${backup_file}" ]] && msg "备份路径: ${backup_file}"
+    fi
+
     if ! chmod +x "${tmp_file}" || ! mv -f "${tmp_file}" "${PANEL_TARGET_BIN}"; then
         rm -f "${tmp_file}"
+        if [[ -n "${backup_file}" ]]; then
+            restore_panel_backup "${backup_file}" >/dev/null 2>&1 || true
+        fi
         err "写入 ${PANEL_TARGET_BIN} 失败，请检查权限。"
         sleep 2
         return 1

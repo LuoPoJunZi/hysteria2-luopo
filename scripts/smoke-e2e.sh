@@ -156,4 +156,17 @@ __mock_journalctl_log="acme: challenge timeout and dns lookup failed"
 hint_output="$(show_service_failure_hint 2>&1 || true)"
 assert_contains "${hint_output}" "CA 证书申请失败" "acme hint missing"
 
+echo "[INFO] Running panel download verification checks..."
+panel_file="${tmp_dir}/hy2-valid.sh"
+cat > "${panel_file}" <<'EOF'
+#!/bin/bash
+sh_ver="v9.8.7"
+echo "Hysteria2-LuoPo 管理面板"
+main_menu() { :; }
+EOF
+verify_downloaded_panel "${panel_file}" || fail "valid downloaded panel should pass"
+assert_eq "$(extract_panel_version "${panel_file}")" "v9.8.7" "downloaded panel version mismatch"
+sed -i '/^sh_ver=/d' "${panel_file}"
+! verify_downloaded_panel "${panel_file}" || fail "downloaded panel without version should fail"
+
 echo "[OK] Smoke E2E checks passed."
