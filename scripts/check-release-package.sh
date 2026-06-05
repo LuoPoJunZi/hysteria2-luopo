@@ -62,7 +62,15 @@ check_local_only_paths_absent() {
 check_tracked_tree() {
     local list_file
     list_file="$(mktemp)"
-    git ls-files --cached --others --exclude-standard | sort > "${list_file}"
+    if git ls-files --cached --others --exclude-standard > "${list_file}" 2>/dev/null; then
+        sort -o "${list_file}" "${list_file}"
+    else
+        find . -type f \
+            ! -path './.git/*' \
+            ! -path './.github/*' \
+            | sed -E 's#^\./##' \
+            | sort > "${list_file}"
+    fi
     check_required_paths "${list_file}"
     check_forbidden_paths "${list_file}"
     assert_list_not_contains "${list_file}" "AGENTS.md"
