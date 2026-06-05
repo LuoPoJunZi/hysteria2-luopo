@@ -57,11 +57,11 @@ jobs:
     runs-on: ubuntu-latest
     container: debian:12
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
       - name: Install dependencies
         run: apt-get update && apt-get install -y bash git shellcheck bats grep sed gawk coreutils
+
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Make verify script executable
         run: chmod +x scripts/verify.sh scripts/check-menu-sync.sh scripts/check-version-sync.sh scripts/check-release-package.sh scripts/smoke-e2e.sh tests/e2e/config-flow.sh
