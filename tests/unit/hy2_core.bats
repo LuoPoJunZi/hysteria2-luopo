@@ -96,6 +96,18 @@ EOF
   [[ "${output}" == *"服务用户无权读取 config.yaml"* ]]
 }
 
+@test "sing-box full template should use modern rule-set format" {
+  rendered="$(render_singbox_full_template "8.8.8.8" "45612" "20" "100" "abc123" "bing.com" "true")"
+  [[ "${rendered}" == *'"rule_set": "geosite-cn"'* ]]
+  [[ "${rendered}" == *'"action": "hijack-dns"'* ]]
+  [[ "${rendered}" == *'"address": ['* ]]
+  [[ "${rendered}" == *'"type": "https"'* ]]
+  [[ "${rendered}" != *'"geosite":'* ]]
+  [[ "${rendered}" != *'"geoip":'* ]]
+  [[ "${rendered}" != *'"inet4_address"'* ]]
+  [[ "${rendered}" != *'"type": "dns"'* ]]
+}
+
 @test "verify_downloaded_panel should require a valid panel version" {
   panel_file="${TMP_DIR}/hy2-valid.sh"
   cat > "${panel_file}" <<'EOF'

@@ -117,6 +117,15 @@ assert_contains "${rendered_json}" "\"type\": \"hysteria2\"" "sing-box type miss
 assert_contains "${rendered_json}" "\"server_port\": 45612" "sing-box port missing"
 assert_contains "${rendered_json}" "\"server_name\": \"bing.com\"" "sing-box sni missing"
 
+rendered_full_json="$(render_singbox_full_template "8.8.8.8" "45612" "20" "100" "abc123" "bing.com" "true")"
+assert_contains "${rendered_full_json}" "\"rule_set\": \"geosite-cn\"" "sing-box full template rule_set missing"
+assert_contains "${rendered_full_json}" "\"action\": \"hijack-dns\"" "sing-box full template dns action missing"
+assert_contains "${rendered_full_json}" "\"address\": [" "sing-box full template tun address missing"
+assert_contains "${rendered_full_json}" "\"type\": \"https\"" "sing-box full template new dns server missing"
+if [[ "${rendered_full_json}" == *"\"geosite\":"* || "${rendered_full_json}" == *"\"geoip\":"* || "${rendered_full_json}" == *"\"inet4_address\""* || "${rendered_full_json}" == *"\"type\": \"dns\""* ]]; then
+    fail "sing-box full template should not contain removed legacy fields"
+fi
+
 rendered_yaml="$(render_v2rayn_yaml_snippet "8.8.8.8" "45612" "abc123" "20" "100" "bing.com" "true")"
 assert_contains "${rendered_yaml}" "server: 8.8.8.8:45612" "v2rayN server line missing"
 assert_contains "${rendered_yaml}" "auth: abc123" "v2rayN auth line missing"

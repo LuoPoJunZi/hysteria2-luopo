@@ -5,7 +5,7 @@
 # ==========================================
 
 # --- 1. 全局变量与颜色输出 ---
-sh_ver="v1.4.3"
+sh_ver="v1.4.4"
 
 _red="\033[0;31m"
 _green="\033[0;32m"
@@ -459,6 +459,135 @@ socks5:
   listen: 127.0.0.1:1080
 http:
   listen: 127.0.0.1:8080
+EOF
+}
+
+render_singbox_full_template() {
+    local json_ip="$1"
+    local port="$2"
+    local up_mbps="$3"
+    local down_mbps="$4"
+    local json_password="$5"
+    local json_sni="$6"
+    local insecure="$7"
+
+    cat << EOF
+{
+  "dns": {
+    "servers": [
+      {
+        "type": "https",
+        "tag": "cf",
+        "server": "1.1.1.1"
+      },
+      {
+        "type": "udp",
+        "tag": "local",
+        "server": "223.5.5.5",
+        "detour": "direct"
+      }
+    ],
+    "rules": [
+      {
+        "rule_set": "geosite-category-ads-all",
+        "action": "reject"
+      },
+      {
+        "rule_set": "geosite-cn",
+        "action": "route",
+        "server": "local"
+      }
+    ],
+    "final": "cf",
+    "strategy": "ipv4_only"
+  },
+  "inbounds": [
+    {
+      "type": "tun",
+      "tag": "tun-in",
+      "address": [
+        "172.19.0.1/30"
+      ],
+      "auto_route": true,
+      "strict_route": false
+    }
+  ],
+  "outbounds": [
+    {
+      "type": "hysteria2",
+      "tag": "proxy",
+      "server": "${json_ip}",
+      "server_port": ${port},
+      "up_mbps": ${up_mbps},
+      "down_mbps": ${down_mbps},
+      "password": "${json_password}",
+      "tls": {
+        "enabled": true,
+        "server_name": "${json_sni}",
+        "insecure": ${insecure}
+      }
+    },
+    {
+      "type": "direct",
+      "tag": "direct"
+    }
+  ],
+  "route": {
+    "rules": [
+      {
+        "action": "sniff"
+      },
+      {
+        "protocol": "dns",
+        "action": "hijack-dns"
+      },
+      {
+        "ip_is_private": true,
+        "action": "route",
+        "outbound": "direct"
+      },
+      {
+        "rule_set": [
+          "geosite-cn",
+          "geoip-cn"
+        ],
+        "action": "route",
+        "outbound": "direct"
+      },
+      {
+        "rule_set": "geosite-category-ads-all",
+        "action": "reject"
+      }
+    ],
+    "rule_set": [
+      {
+        "type": "remote",
+        "tag": "geosite-cn",
+        "format": "binary",
+        "url": "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-cn.srs"
+      },
+      {
+        "type": "remote",
+        "tag": "geoip-cn",
+        "format": "binary",
+        "url": "https://raw.githubusercontent.com/SagerNet/sing-geoip/rule-set/geoip-cn.srs"
+      },
+      {
+        "type": "remote",
+        "tag": "geosite-category-ads-all",
+        "format": "binary",
+        "url": "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-category-ads-all.srs"
+      }
+    ],
+    "final": "proxy",
+    "auto_detect_interface": true
+  },
+  "experimental": {
+    "cache_file": {
+      "enabled": true
+    }
+  }
+}
 EOF
 }
 
@@ -929,101 +1058,9 @@ show_singbox_template() {
 
     clear
     print_line
-    echo -e "          ${_green}--- Sing-box 完整模板 (Android/iOS) ---${_plain}"
+    echo -e "     ${_green}--- Sing-box 完整模板 (Android/iOS / 1.12+) ---${_plain}"
     print_line
-    echo -e "{
-  \"dns\": {
-    \"servers\": [
-      {
-        \"tag\": \"cf\",
-        \"address\": \"https://1.1.1.1/dns-query\"
-      },
-      {
-        \"tag\": \"local\",
-        \"address\": \"223.5.5.5\",
-        \"detour\": \"direct\"
-      },
-      {
-        \"tag\": \"block\",
-        \"address\": \"rcode://success\"
-      }
-    ],
-    \"rules\": [
-      {
-        \"geosite\": \"category-ads-all\",
-        \"server\": \"block\",
-        \"disable_cache\": true
-      },
-      {
-        \"outbound\": \"any\",
-        \"server\": \"local\"
-      },
-      {
-        \"geosite\": \"cn\",
-        \"server\": \"local\"
-      }
-    ],
-    \"strategy\": \"ipv4_only\"
-  },
-  \"inbounds\": [
-    {
-      \"type\": \"tun\",
-      \"inet4_address\": \"172.19.0.1/30\",
-      \"auto_route\": true,
-      \"strict_route\": false,
-      \"sniff\": true
-    }
-  ],
-  \"outbounds\": [
-    {
-      \"type\": \"hysteria2\",
-      \"tag\": \"proxy\",
-      \"server\": \"${json_ip}\",
-      \"server_port\": ${port},
-      \"up_mbps\": ${up_mbps},
-      \"down_mbps\": ${down_mbps},
-      \"password\": \"${json_password}\",
-      \"tls\": {
-        \"enabled\": true,
-        \"server_name\": \"${json_sni}\",
-        \"insecure\": ${insecure}
-      }
-    },
-    {
-      \"type\": \"direct\",
-      \"tag\": \"direct\"
-    },
-    {
-      \"type\": \"block\",
-      \"tag\": \"block\"
-    },
-    {
-      \"type\": \"dns\",
-      \"tag\": \"dns-out\"
-    }
-  ],
-  \"route\": {
-    \"rules\": [
-      {
-        \"protocol\": \"dns\",
-        \"outbound\": \"dns-out\"
-      },
-      {
-        \"geosite\": \"cn\",
-        \"geoip\": [
-          \"private\",
-          \"cn\"
-        ],
-        \"outbound\": \"direct\"
-      },
-      {
-        \"geosite\": \"category-ads-all\",
-        \"outbound\": \"block\"
-      }
-    ],
-    \"auto_detect_interface\": true
-  }
-}"
+    render_singbox_full_template "${json_ip}" "${port}" "${up_mbps}" "${down_mbps}" "${json_password}" "${json_sni}" "${insecure}"
     print_line
     wait_return
 }
