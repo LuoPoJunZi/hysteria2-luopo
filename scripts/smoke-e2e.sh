@@ -122,8 +122,14 @@ assert_contains "${rendered_full_json}" "\"rule_set\": \"geosite-cn\"" "sing-box
 assert_contains "${rendered_full_json}" "\"action\": \"hijack-dns\"" "sing-box full template dns action missing"
 assert_contains "${rendered_full_json}" "\"address\": [" "sing-box full template tun address missing"
 assert_contains "${rendered_full_json}" "\"type\": \"https\"" "sing-box full template new dns server missing"
+assert_contains "${rendered_full_json}" "\"detour\": \"proxy\"" "sing-box full template remote dns detour missing"
+assert_contains "${rendered_full_json}" "\"default_domain_resolver\": \"cf\"" "sing-box full template default resolver missing"
+assert_contains "${rendered_full_json}" "\"download_detour\": \"proxy\"" "sing-box full template rule-set download detour missing"
 if [[ "${rendered_full_json}" == *"\"geosite\":"* || "${rendered_full_json}" == *"\"geoip\":"* || "${rendered_full_json}" == *"\"inet4_address\""* || "${rendered_full_json}" == *"\"type\": \"dns\""* ]]; then
     fail "sing-box full template should not contain removed legacy fields"
+fi
+if [[ "${rendered_full_json}" == *"\"detour\": \"direct\""* ]]; then
+    fail "sing-box full template should not detour local dns to direct outbound"
 fi
 
 rendered_yaml="$(render_v2rayn_yaml_snippet "8.8.8.8" "45612" "abc123" "20" "100" "bing.com" "true")"

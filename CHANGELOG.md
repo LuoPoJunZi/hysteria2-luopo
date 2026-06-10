@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.4.5 - 2026-06-10
+
+- 修复 Sing-box Android 启动时报 `dns/udp[local]: detour to an empty direct outbound makes no sense` 的问题。
+- 移除完整模板中本地 DNS server 的 `detour: direct` 写法。
+- 远程 DNS 和远程规则集下载改为走 `proxy`，并设置 `route.default_domain_resolver`，降低安卓端 DNS 解析失败风险。
+- 补充回归测试，防止完整模板再次把本地 DNS detour 到 direct outbound。
+
 ## v1.4.4 - 2026-06-06
 
 - 更新菜单 `(8)` Sing-box 完整模板，兼容 sing-box 1.12+ / 1.14+ 新配置格式。

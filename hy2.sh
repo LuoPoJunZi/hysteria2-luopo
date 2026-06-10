@@ -5,7 +5,7 @@
 # ==========================================
 
 # --- 1. 全局变量与颜色输出 ---
-sh_ver="v1.4.4"
+sh_ver="v1.4.5"
 
 _red="\033[0;31m"
 _green="\033[0;32m"
@@ -478,13 +478,13 @@ render_singbox_full_template() {
       {
         "type": "https",
         "tag": "cf",
-        "server": "1.1.1.1"
+        "server": "1.1.1.1",
+        "detour": "proxy"
       },
       {
         "type": "udp",
         "tag": "local",
-        "server": "223.5.5.5",
-        "detour": "direct"
+        "server": "223.5.5.5"
       }
     ],
     "rules": [
@@ -533,6 +533,7 @@ render_singbox_full_template() {
     }
   ],
   "route": {
+    "default_domain_resolver": "cf",
     "rules": [
       {
         "action": "sniff"
@@ -564,19 +565,22 @@ render_singbox_full_template() {
         "type": "remote",
         "tag": "geosite-cn",
         "format": "binary",
-        "url": "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-cn.srs"
+        "url": "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-cn.srs",
+        "download_detour": "proxy"
       },
       {
         "type": "remote",
         "tag": "geoip-cn",
         "format": "binary",
-        "url": "https://raw.githubusercontent.com/SagerNet/sing-geoip/rule-set/geoip-cn.srs"
+        "url": "https://raw.githubusercontent.com/SagerNet/sing-geoip/rule-set/geoip-cn.srs",
+        "download_detour": "proxy"
       },
       {
         "type": "remote",
         "tag": "geosite-category-ads-all",
         "format": "binary",
-        "url": "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-category-ads-all.srs"
+        "url": "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-category-ads-all.srs",
+        "download_detour": "proxy"
       }
     ],
     "final": "proxy",

@@ -102,10 +102,14 @@ EOF
   [[ "${rendered}" == *'"action": "hijack-dns"'* ]]
   [[ "${rendered}" == *'"address": ['* ]]
   [[ "${rendered}" == *'"type": "https"'* ]]
+  [[ "${rendered}" == *'"detour": "proxy"'* ]]
+  [[ "${rendered}" == *'"default_domain_resolver": "cf"'* ]]
+  [[ "${rendered}" == *'"download_detour": "proxy"'* ]]
   [[ "${rendered}" != *'"geosite":'* ]]
   [[ "${rendered}" != *'"geoip":'* ]]
   [[ "${rendered}" != *'"inet4_address"'* ]]
   [[ "${rendered}" != *'"type": "dns"'* ]]
+  [[ "${rendered}" != *'"detour": "direct"'* ]]
 }
 
 @test "verify_downloaded_panel should require a valid panel version" {
