@@ -160,6 +160,8 @@ hy2
 适合：没有域名，想快速用 IP 连通。  
 要求：客户端必须开启 `insecure=true`。
 
+注意：v2rayN 7.22.7 已提示 Xray 后续会禁用跳过证书验证 `allowInsecure`。自签模式导入 v2rayN 适合临时测试，长期建议 v2rayN 用户优先使用 CA 域名证书模式；自签模式更推荐使用 Sing-box 完整模板。
+
 自签模式支持 SNI 预设：
 
 - `bing.com`
@@ -177,6 +179,7 @@ hy2
 
 - 在面板菜单 `3` 复制 `hysteria2://` 链接导入
 - 或复制 YAML 片段做手动配置
+- 如果节点是自签模式，v2rayN / Xray 后续可能不再支持长期依赖 `insecure=true`。长期使用建议改用 CA 域名证书模式。
 
 ### 7.2 Android / iOS（Sing-box）
 

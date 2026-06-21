@@ -5,7 +5,7 @@
 # ==========================================
 
 # --- 1. 全局变量与颜色输出 ---
-sh_ver="v1.4.5"
+sh_ver="v1.4.6"
 
 _red="\033[0;31m"
 _green="\033[0;32m"
@@ -460,6 +460,14 @@ socks5:
 http:
   listen: 127.0.0.1:8080
 EOF
+}
+
+print_v2rayn_insecure_notice() {
+    print_line
+    echo -e "${_yellow}[v2rayN / Xray 自签证书提醒]${_plain}"
+    echo -e "  当前节点为自签模式，v2rayN 导入会依赖 insecure=true / allowInsecure。"
+    echo -e "  v2rayN 7.22.7 已提示：Xray 将在 2026-08-01 禁用跳过证书验证 allowInsecure。"
+    echo -e "  长期建议：v2rayN 优先使用 CA 域名证书模式；自签模式优先使用 Sing-box 完整模板。"
 }
 
 render_singbox_full_template() {
@@ -1000,6 +1008,10 @@ show_info() {
     echo -e "  [*] 上行带宽  : ${_yellow}${up_mbps}${_plain} Mbps"
     echo -e "  [*] 下行带宽  : ${_yellow}${down_mbps}${_plain} Mbps"
     print_line
+
+    if [[ "${insecure}" == "true" ]]; then
+        print_v2rayn_insecure_notice
+    fi
 
     local enc_password enc_sni url_host json_ip json_password json_sni
     enc_password="$(url_encode "${password}")"

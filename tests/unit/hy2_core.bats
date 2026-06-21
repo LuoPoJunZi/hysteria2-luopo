@@ -112,6 +112,15 @@ EOF
   [[ "${rendered}" != *'"detour": "direct"'* ]]
 }
 
+@test "v2rayN insecure notice should warn self-signed users" {
+  run print_v2rayn_insecure_notice
+  [ "${status}" -eq 0 ]
+  [[ "${output}" == *"v2rayN / Xray 自签证书提醒"* ]]
+  [[ "${output}" == *"2026-08-01"* ]]
+  [[ "${output}" == *"CA 域名证书模式"* ]]
+  [[ "${output}" == *"Sing-box 完整模板"* ]]
+}
+
 @test "verify_downloaded_panel should require a valid panel version" {
   panel_file="${TMP_DIR}/hy2-valid.sh"
   cat > "${panel_file}" <<'EOF'

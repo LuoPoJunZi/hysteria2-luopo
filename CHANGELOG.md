@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.4.6 - 2026-06-21
+
+- 根据 v2rayN 7.22.7 的 allowInsecure 变更提醒，增加自签模式导出时的 v2rayN / Xray 风险提示。
+- README 补充 v2rayN 自签模式建议：长期优先使用 CA 域名证书，自签模式优先使用 Sing-box 完整模板。
+- 补充回归测试，确保 v2rayN 自签风险提示持续输出。
+
 ## v1.4.5 - 2026-06-10
 
 - 修复 Sing-box Android 启动时报 `dns/udp[local]: detour to an empty direct outbound makes no sense` 的问题。

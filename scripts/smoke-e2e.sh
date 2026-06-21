@@ -136,6 +136,11 @@ rendered_yaml="$(render_v2rayn_yaml_snippet "8.8.8.8" "45612" "abc123" "20" "100
 assert_contains "${rendered_yaml}" "server: 8.8.8.8:45612" "v2rayN server line missing"
 assert_contains "${rendered_yaml}" "auth: abc123" "v2rayN auth line missing"
 
+notice_output="$(print_v2rayn_insecure_notice 2>&1)"
+assert_contains "${notice_output}" "v2rayN / Xray 自签证书提醒" "v2rayN insecure notice title missing"
+assert_contains "${notice_output}" "2026-08-01" "v2rayN insecure notice date missing"
+assert_contains "${notice_output}" "CA 域名证书模式" "v2rayN insecure notice CA advice missing"
+
 assert_eq "$(format_host_for_url "2001:db8::1")" "[2001:db8::1]" "IPv6 host formatting mismatch"
 assert_eq "$(format_host_for_url "8.8.8.8")" "8.8.8.8" "IPv4 host formatting mismatch"
 
