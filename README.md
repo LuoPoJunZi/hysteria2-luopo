@@ -109,7 +109,7 @@ hy2
 
 ```text
 =====================================================
-  Hysteria2-LuoPo 管理面板 V1.4 |  快捷启动: hy2
+  Hysteria2-LuoPo 管理面板 V26.7 |  快捷启动: hy2
 =====================================================
   内核版本: v2.8.1    服务状态: 运行中
 -----------------------------------------------------
@@ -158,9 +158,9 @@ hy2
 ### 自签模式（选项 2）
 
 适合：没有域名，想快速用 IP 连通。  
-要求：客户端必须开启 `insecure=true`。
+要求：客户端必须开启 `insecure=true`。脚本会同时导出自签证书的 `pinSHA256`，避免新版 Xray 继续依赖已移除的 `allowInsecure`。
 
-注意：v2rayN 7.22.7 已提示 Xray 后续会禁用跳过证书验证 `allowInsecure`。自签模式导入 v2rayN 适合临时测试，长期建议 v2rayN 用户优先使用 CA 域名证书模式；自签模式更推荐使用 Sing-box 完整模板。
+注意：自签节点使用 Xray 时要求 v2rayN `7.17.1+`、Xray-core `26.2.6+`，由 v2rayN 将分享链接中的 `pinSHA256` 转换为 `pinnedPeerCertSha256`。重新生成自签证书后必须重新导入节点。长期使用仍建议优先采用 CA 域名证书模式。
 
 自签模式支持 SNI 预设：
 
@@ -179,7 +179,9 @@ hy2
 
 - 在面板菜单 `3` 复制 `hysteria2://` 链接导入
 - 或复制 YAML 片段做手动配置
-- 如果节点是自签模式，v2rayN / Xray 后续可能不再支持长期依赖 `insecure=true`。长期使用建议改用 CA 域名证书模式。
+- 分享链接按 Hysteria2 官方 URI 规范使用 `insecure=1`（CA 证书模式使用 `insecure=0`）
+- 自签模式的链接额外包含 `pinSHA256`；v2rayN 使用 Xray 时会转换为 `pinnedPeerCertSha256`
+- Xray 兼容要求：v2rayN `7.17.1+`、Xray-core `26.2.6+`。旧版 Xray 不保证支持自签证书固定。
 
 ### 7.2 Android / iOS（Sing-box）
 
@@ -284,6 +286,7 @@ chmod +x scripts/verify.sh
 ### 10.5 发布流程说明
 
 - 版本来源：`hy2.sh` 中 `sh_ver`
+- 版本号采用 `v年.月.日` 格式，例如 `v26.7.14`
 - push 到 `main` 后触发：
   - `Lint`（质量检查）
   - `Auto Release`（自动打包发布）

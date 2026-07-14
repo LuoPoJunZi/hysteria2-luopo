@@ -5,7 +5,7 @@
 # ==========================================
 
 # --- 1. 全局变量与颜色输出 ---
-sh_ver="v1.4.6"
+sh_ver="v26.7.14"
 
 _red="\033[0;31m"
 _green="\033[0;32m"
@@ -136,6 +136,78 @@ format_host_for_url() {
         return
     fi
     printf '%s' "${host}"
+}
+
+normalize_certificate_sha256() {
+    local fingerprint="$1"
+    fingerprint="${fingerprint#*=}"
+    fingerprint="${fingerprint//:/}"
+    fingerprint="${fingerprint//[[:space:]]/}"
+    fingerprint="${fingerprint,,}"
+    [[ "${fingerprint}" =~ ^[0-9a-f]{64}$ ]] || return 1
+    printf '%s' "${fingerprint}"
+}
+
+get_certificate_sha256() {
+    local cert_file="$1"
+    local fingerprint
+    [[ -f "${cert_file}" ]] || return 1
+    fingerprint="$(openssl x509 -in "${cert_file}" -noout -fingerprint -sha256 2>/dev/null)" || return 1
+    normalize_certificate_sha256 "${fingerprint}"
+}
+
+render_hysteria2_share_url() {
+    local ip="$1"
+    local port="$2"
+    local password="$3"
+    local sni="$4"
+    local insecure="$5"
+    local cert_sha="${6:-}"
+    local uri_insecure
+    local query
+
+    case "${insecure}" in
+        true) uri_insecure="1" ;;
+        false) uri_insecure="0" ;;
+        *) return 1 ;;
+    esac
+
+    if [[ -n "${cert_sha}" ]]; then
+        cert_sha="$(normalize_certificate_sha256 "${cert_sha}")" || return 1
+    fi
+
+    query="sni=$(url_encode "${sni}")&insecure=${uri_insecure}&allowInsecure=${uri_insecure}"
+    if [[ -n "${cert_sha}" ]]; then
+        query+="&pinSHA256=${cert_sha}"
+    fi
+
+    printf 'hysteria2://%s@%s:%s/?%s#Hysteria2-LuoPo' \
+        "$(url_encode "${password}")" \
+        "$(format_host_for_url "${ip}")" \
+        "${port}" \
+        "${query}"
+}
+
+generate_self_signed_certificate() {
+    local sni="$1"
+    local cert_file="${HY2_CONF_DIR}/server.crt"
+    local key_file="${HY2_CONF_DIR}/server.key"
+
+    if openssl req -x509 -nodes -newkey ec \
+        -pkeyopt ec_paramgen_curve:prime256v1 \
+        -keyout "${key_file}" -out "${cert_file}" \
+        -subj "/CN=${sni}" -days 36500 \
+        -addext "subjectAltName=DNS:${sni}" \
+        -addext "basicConstraints=critical,CA:FALSE" \
+        -addext "keyUsage=critical,digitalSignature" \
+        -addext "extendedKeyUsage=serverAuth" >/dev/null 2>&1; then
+        return 0
+    fi
+
+    openssl req -x509 -nodes -newkey ec \
+        -pkeyopt ec_paramgen_curve:prime256v1 \
+        -keyout "${key_file}" -out "${cert_file}" \
+        -subj "/CN=${sni}" -days 36500 >/dev/null 2>&1
 }
 
 write_file_atomic() {
@@ -445,6 +517,7 @@ render_v2rayn_yaml_snippet() {
     local down_mbps="$5"
     local sni="$6"
     local insecure="$7"
+    local cert_sha="${8:-}"
 
     cat << EOF
 server: ${ip}:${port}
@@ -455,6 +528,11 @@ bandwidth:
 tls:
   sni: ${sni}
   insecure: ${insecure}
+EOF
+    if [[ -n "${cert_sha}" ]]; then
+        printf '  pinSHA256: %s\n' "${cert_sha}"
+    fi
+    cat << EOF
 socks5:
   listen: 127.0.0.1:1080
 http:
@@ -465,9 +543,10 @@ EOF
 print_v2rayn_insecure_notice() {
     print_line
     echo -e "${_yellow}[v2rayN / Xray 自签证书提醒]${_plain}"
-    echo -e "  当前节点为自签模式，v2rayN 导入会依赖 insecure=true / allowInsecure。"
-    echo -e "  v2rayN 7.22.7 已提示：Xray 将在 2026-08-01 禁用跳过证书验证 allowInsecure。"
-    echo -e "  长期建议：v2rayN 优先使用 CA 域名证书模式；自签模式优先使用 Sing-box 完整模板。"
+    echo -e "  分享链接包含 insecure=1 与 pinSHA256，可兼容原生 Hysteria2 / Sing-box。"
+    echo -e "  使用 Xray 时请确保：v2rayN >= 7.17.1，Xray-core >= 26.2.6。"
+    echo -e "  Xray 将 pinSHA256 转换为 pinnedPeerCertSha256，不再依赖 allowInsecure。"
+    echo -e "  重新生成自签证书后指纹会变化，客户端必须重新导入节点。"
 }
 
 render_singbox_full_template() {
@@ -932,10 +1011,16 @@ config_hy2() {
             return 1
         fi
 
-        if ! openssl req -x509 -nodes -newkey ec:<(openssl ecparam -name prime256v1) \
-        -keyout ${HY2_CONF_DIR}/server.key -out ${HY2_CONF_DIR}/server.crt \
-        -subj "/CN=${sni}" -days 36500 >/dev/null 2>&1; then
+        if ! generate_self_signed_certificate "${sni}"; then
+            restore_runtime_files >/dev/null 2>&1 || true
             err "自签证书生成失败，请确认系统已安装 openssl。"
+            sleep 2
+            return 1
+        fi
+
+        if ! get_certificate_sha256 "${HY2_CONF_DIR}/server.crt" >/dev/null; then
+            restore_runtime_files >/dev/null 2>&1 || true
+            err "无法计算自签证书 SHA-256 指纹，已中止配置。"
             sleep 2
             return 1
         fi
@@ -943,6 +1028,7 @@ config_hy2() {
         set_tls_file_permissions
 
         if ! write_self_signed_config "${port}" "${password}" "${masquerade_url}"; then
+            restore_runtime_files >/dev/null 2>&1 || true
             err "写入自签配置失败，请检查磁盘空间与目录权限。"
             sleep 2
             return 1
@@ -996,6 +1082,11 @@ show_info() {
         return
     fi
 
+    local cert_sha=""
+    if [[ "${insecure}" == "true" ]]; then
+        cert_sha="$(get_certificate_sha256 "${HY2_CONF_DIR}/server.crt" 2>/dev/null || true)"
+    fi
+
     clear
     print_line
     echo -e "               ${_green}--- Hysteria2 客户端配置 ---${_plain}"
@@ -1005,6 +1096,13 @@ show_info() {
     echo -e "  [*] 密码      : ${_yellow}${password}${_plain}"
     echo -e "  [*] SNI伪装   : ${_yellow}${sni}${_plain}"
     echo -e "  [*] 跳过证书  : ${_yellow}${insecure}${_plain} (自签必须为true)"
+    if [[ "${insecure}" == "true" ]]; then
+        if [[ -n "${cert_sha}" ]]; then
+            echo -e "  [*] 证书指纹  : ${_yellow}${cert_sha}${_plain}"
+        else
+            echo -e "  [!] 证书指纹  : ${_red}读取失败，Xray 内核暂不可用${_plain}"
+        fi
+    fi
     echo -e "  [*] 上行带宽  : ${_yellow}${up_mbps}${_plain} Mbps"
     echo -e "  [*] 下行带宽  : ${_yellow}${down_mbps}${_plain} Mbps"
     print_line
@@ -1013,11 +1111,12 @@ show_info() {
         print_v2rayn_insecure_notice
     fi
 
-    local enc_password enc_sni url_host json_ip json_password json_sni
-    enc_password="$(url_encode "${password}")"
-    enc_sni="$(url_encode "${sni}")"
-    url_host="$(format_host_for_url "${ip}")"
-    local hy2_url="hysteria2://${enc_password}@${url_host}:${port}/?sni=${enc_sni}&insecure=${insecure}#Hysteria2-LuoPo"
+    local hy2_url json_ip json_password json_sni
+    if ! hy2_url="$(render_hysteria2_share_url "${ip}" "${port}" "${password}" "${sni}" "${insecure}" "${cert_sha}")"; then
+        err "生成 Hysteria2 分享链接失败，请重新配置节点。"
+        wait_return
+        return 1
+    fi
 
     json_ip="$(json_escape "${ip}")"
     json_password="$(json_escape "${password}")"
@@ -1030,7 +1129,7 @@ show_info() {
     render_singbox_outbound_snippet "${json_ip}" "${port}" "${up_mbps}" "${down_mbps}" "${json_password}" "${json_sni}" "${insecure}"
     print_line
     echo -e "${_green}[YAML] v2rayN / nekoray 自定义配置片段:${_plain}"
-    render_v2rayn_yaml_snippet "${ip}" "${port}" "${password}" "${up_mbps}" "${down_mbps}" "${sni}" "${insecure}"
+    render_v2rayn_yaml_snippet "${ip}" "${port}" "${password}" "${up_mbps}" "${down_mbps}" "${sni}" "${insecure}" "${cert_sha}"
     print_line
     wait_return
 }
@@ -1051,9 +1150,13 @@ show_cheatsheet() {
     echo -e "journalctl -u ${HY2_SERVICE} --no-pager -n 100 -f"
     print_line
     echo -e "${_green}[自签证书生成]${_plain}"
-    echo -e "openssl req -x509 -nodes -newkey ec:<(openssl ecparam -name prime256v1) \\"
+    echo -e "openssl req -x509 -nodes -newkey ec \\"
+    echo -e "  -pkeyopt ec_paramgen_curve:prime256v1 \\"
     echo -e "  -keyout ${HY2_CONF_DIR}/server.key -out ${HY2_CONF_DIR}/server.crt \\"
-    echo -e "  -subj \"/CN=bing.com\" -days 36500"
+    echo -e "  -subj \"/CN=bing.com\" -days 36500 \\"
+    echo -e "  -addext \"subjectAltName=DNS:bing.com\" \\"
+    echo -e "  -addext \"basicConstraints=critical,CA:FALSE\" \\"
+    echo -e "  -addext \"extendedKeyUsage=serverAuth\""
     print_line
     echo -e "${_green}[配置文件路径]${_plain}"
     echo -e "服务配置: ${HY2_CONF_FILE}"

@@ -151,3 +151,4 @@ jobs:
           tag_name: ${{ env.VERSION }}
           name: ${{ env.VERSION }}
           body_path: RELEASE_BODY.md
+          prerelease: true

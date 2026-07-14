@@ -112,6 +112,19 @@ pick_self_signed_sni <<< "9"
 assert_eq "${PICKED_SNI}" "bing.com" "invalid SNI fallback mismatch"
 
 echo "[INFO] Running share snippet checks..."
+cert_sha="0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+share_url="$(render_hysteria2_share_url "8.8.8.8" "45612" "pa ss" "bing.com" "true" "${cert_sha}")"
+assert_eq "${share_url}" "hysteria2://pa%20ss@8.8.8.8:45612/?sni=bing.com&insecure=1&allowInsecure=1&pinSHA256=${cert_sha}#Hysteria2-LuoPo" "Hysteria2 share URL mismatch"
+if [[ "${share_url}" == *"insecure=true"* ]]; then
+    fail "Hysteria2 share URL must use insecure=1 instead of insecure=true"
+fi
+
+secure_share_url="$(render_hysteria2_share_url "2001:db8::1" "443" "abc123" "example.com" "false")"
+assert_eq "${secure_share_url}" "hysteria2://abc123@[2001:db8::1]:443/?sni=example.com&insecure=0&allowInsecure=0#Hysteria2-LuoPo" "secure Hysteria2 share URL mismatch"
+
+normalized_sha="$(normalize_certificate_sha256 "sha256 Fingerprint=01:23:45:67:89:AB:CD:EF:01:23:45:67:89:AB:CD:EF:01:23:45:67:89:AB:CD:EF:01:23:45:67:89:AB:CD:EF")"
+assert_eq "${normalized_sha}" "${cert_sha}" "certificate SHA-256 normalization mismatch"
+
 rendered_json="$(render_singbox_outbound_snippet "8.8.8.8" "45612" "20" "100" "abc123" "bing.com" "true")"
 assert_contains "${rendered_json}" "\"type\": \"hysteria2\"" "sing-box type missing"
 assert_contains "${rendered_json}" "\"server_port\": 45612" "sing-box port missing"
@@ -132,14 +145,17 @@ if [[ "${rendered_full_json}" == *"\"detour\": \"direct\""* ]]; then
     fail "sing-box full template should not detour local dns to direct outbound"
 fi
 
-rendered_yaml="$(render_v2rayn_yaml_snippet "8.8.8.8" "45612" "abc123" "20" "100" "bing.com" "true")"
+rendered_yaml="$(render_v2rayn_yaml_snippet "8.8.8.8" "45612" "abc123" "20" "100" "bing.com" "true" "${cert_sha}")"
 assert_contains "${rendered_yaml}" "server: 8.8.8.8:45612" "v2rayN server line missing"
 assert_contains "${rendered_yaml}" "auth: abc123" "v2rayN auth line missing"
+assert_contains "${rendered_yaml}" "pinSHA256: ${cert_sha}" "native Hysteria2 certificate pin missing"
 
 notice_output="$(print_v2rayn_insecure_notice 2>&1)"
 assert_contains "${notice_output}" "v2rayN / Xray 自签证书提醒" "v2rayN insecure notice title missing"
-assert_contains "${notice_output}" "2026-08-01" "v2rayN insecure notice date missing"
-assert_contains "${notice_output}" "CA 域名证书模式" "v2rayN insecure notice CA advice missing"
+assert_contains "${notice_output}" "insecure=1" "v2rayN insecure notice URI value missing"
+assert_contains "${notice_output}" "pinSHA256" "v2rayN certificate pin notice missing"
+assert_contains "${notice_output}" "Xray-core >= 26.2.6" "v2rayN Xray version notice missing"
+assert_contains "${notice_output}" "pinnedPeerCertSha256" "v2rayN Xray pin mapping notice missing"
 
 assert_eq "$(format_host_for_url "2001:db8::1")" "[2001:db8::1]" "IPv6 host formatting mismatch"
 assert_eq "$(format_host_for_url "8.8.8.8")" "8.8.8.8" "IPv4 host formatting mismatch"

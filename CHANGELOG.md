@@ -1,5 +1,13 @@
 # Changelog
 
+## v26.7.14 - 2026-07-14
+
+- Hysteria2 分享链接按官方 URI 规范使用 `insecure=1/0`，并补充 v2rayN 兼容参数。
+- 自签节点自动导出证书 SHA-256 指纹与 `pinSHA256`，v2rayN 使用 Xray 时可转换为 `pinnedPeerCertSha256`。
+- 新生成的自签证书增加 SAN、`CA:FALSE` 和 serverAuth 扩展，现有证书不会因面板更新自动重签。
+- 原生 Hysteria2 YAML 同步加入证书指纹，并补充链接、指纹、证书兼容性回归测试。
+- 版本号切换为 `v年.月.日` 格式；本版本作为预发布版本供实际 VPS、v2rayN 和 Xray 联调验证。
+
 ## v1.4.6 - 2026-06-21
 
 - 根据 v2rayN 7.22.7 的 allowInsecure 变更提醒，增加自签模式导出时的 v2rayN / Xray 风险提示。

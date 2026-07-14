@@ -116,9 +116,44 @@ EOF
   run print_v2rayn_insecure_notice
   [ "${status}" -eq 0 ]
   [[ "${output}" == *"v2rayN / Xray 自签证书提醒"* ]]
-  [[ "${output}" == *"2026-08-01"* ]]
-  [[ "${output}" == *"CA 域名证书模式"* ]]
-  [[ "${output}" == *"Sing-box 完整模板"* ]]
+  [[ "${output}" == *"insecure=1"* ]]
+  [[ "${output}" == *"pinSHA256"* ]]
+  [[ "${output}" == *"Xray-core >= 26.2.6"* ]]
+  [[ "${output}" == *"pinnedPeerCertSha256"* ]]
+  [[ "${output}" == *"重新导入节点"* ]]
+}
+
+@test "hysteria2 share URL should use URI boolean values" {
+  cert_sha="0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+  run render_hysteria2_share_url "8.8.8.8" "45612" "pa ss" "bing.com" "true" "${cert_sha}"
+  [ "${status}" -eq 0 ]
+  [ "${output}" = "hysteria2://pa%20ss@8.8.8.8:45612/?sni=bing.com&insecure=1&allowInsecure=1&pinSHA256=${cert_sha}#Hysteria2-LuoPo" ]
+
+  run render_hysteria2_share_url "2001:db8::1" "443" "abc123" "example.com" "false"
+  [ "${status}" -eq 0 ]
+  [ "${output}" = "hysteria2://abc123@[2001:db8::1]:443/?sni=example.com&insecure=0&allowInsecure=0#Hysteria2-LuoPo" ]
+}
+
+@test "hysteria2 share URL should reject invalid insecure values" {
+  run render_hysteria2_share_url "8.8.8.8" "443" "abc123" "bing.com" "yes"
+  [ "${status}" -ne 0 ]
+}
+
+@test "certificate fingerprint normalizer should return lowercase hex" {
+  raw="sha256 Fingerprint=AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99"
+  run normalize_certificate_sha256 "${raw}"
+  [ "${status}" -eq 0 ]
+  [ "${output}" = "aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899" ]
+
+  run normalize_certificate_sha256 "not-a-fingerprint"
+  [ "${status}" -ne 0 ]
+}
+
+@test "native Hysteria2 YAML should include certificate pin when available" {
+  cert_sha="0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+  run render_v2rayn_yaml_snippet "8.8.8.8" "45612" "abc123" "20" "100" "bing.com" "true" "${cert_sha}"
+  [ "${status}" -eq 0 ]
+  [[ "${output}" == *"pinSHA256: ${cert_sha}"* ]]
 }
 
 @test "verify_downloaded_panel should require a valid panel version" {
