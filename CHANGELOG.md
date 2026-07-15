@@ -1,5 +1,9 @@
 # Changelog
 
+## v26.7.15 - 2026-07-15
+
+- README 删除 `hy2.evzzz.com` 域名安装方式，仅保留 GitHub 官方仓库的 `install.sh` 一键安装命令。
+
 ## v26.7.14 - 2026-07-14
 
 - Hysteria2 分享链接按官方 URI 规范使用 `insecure=1/0`，并补充 v2rayN 兼容参数。

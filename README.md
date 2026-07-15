@@ -83,10 +83,6 @@ ssh root@你的服务器IP
 ### 4.2 一键安装
 
 ```bash
-bash <(curl -fsSL hy2.evzzz.com)
-```
-备用
-```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/LuoPoJunZi/hysteria2-luopo/main/install.sh)
 ```
 
