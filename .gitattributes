@@ -5,3 +5,5 @@
 *.yml text eol=lf
 *.yaml text eol=lf
 *.md text eol=lf
+.editorconfig text eol=lf
+.gitignore text eol=lf

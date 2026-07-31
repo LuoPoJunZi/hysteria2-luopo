@@ -11,8 +11,7 @@ _green="\033[0;32m"
 _yellow="\033[0;33m"
 _plain="\033[0m"
 
-# 你的 GitHub 仓库 Raw 地址前缀 (开发时可以先写死，后期改为 master/main 分支)
-# 格式类似: https://raw.githubusercontent.com/LuoPoJunZi/hysteria2-luopo/main
+# GitHub 官方仓库 Raw 地址前缀
 GITHUB_RAW_URL="https://raw.githubusercontent.com/LuoPoJunZi/hysteria2-luopo/main"
 TARGET_BIN="/usr/local/bin/hy2"
 
@@ -32,7 +31,7 @@ require_cmd() {
 preflight_check() {
     local missing=0
     local cmd
-    for cmd in grep head mktemp chmod mv; do
+    for cmd in bash grep head mktemp chmod mkdir mv rm; do
         if ! require_cmd "${cmd}"; then
             missing=1
         fi
@@ -95,19 +94,31 @@ verify_downloaded_panel() {
     if ! grep -q 'main_menu' "${file}"; then
         return 1
     fi
+    if ! grep -q 'Hysteria2-LuoPo 管理面板' "${file}"; then
+        return 1
+    fi
+    if ! grep -Eq '^sh_ver="v[0-9]+\.[0-9]+\.[0-9]+"' "${file}"; then
+        return 1
+    fi
+    if ! bash -n "${file}" >/dev/null 2>&1; then
+        return 1
+    fi
     return 0
 }
 
 download_panel() {
     local tmp_file
-    tmp_file="$(mktemp /tmp/hy2.XXXXXX)" || return 1
+    mkdir -p "${TARGET_BIN%/*}" || return 1
+    tmp_file="$(mktemp "${TARGET_BIN}.tmp.XXXXXX")" || return 1
 
     if command -v curl >/dev/null 2>&1; then
-        curl -fL --retry 2 --connect-timeout 8 -o "${tmp_file}" "${GITHUB_RAW_URL}/hy2.sh" >/dev/null 2>&1 || true
+        curl -fL --retry 2 --connect-timeout 8 --max-time 60 \
+            -o "${tmp_file}" "${GITHUB_RAW_URL}/hy2.sh" >/dev/null 2>&1 || true
     fi
 
     if [[ ! -s "${tmp_file}" ]] && command -v wget >/dev/null 2>&1; then
-        wget -qO "${tmp_file}" "${GITHUB_RAW_URL}/hy2.sh" >/dev/null 2>&1 || true
+        wget -q --timeout=10 --tries=2 -O "${tmp_file}" \
+            "${GITHUB_RAW_URL}/hy2.sh" >/dev/null 2>&1 || true
     fi
 
     if ! verify_downloaded_panel "${tmp_file}"; then

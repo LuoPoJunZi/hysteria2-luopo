@@ -26,6 +26,15 @@ teardown() {
   run is_valid_port "70000"
   [ "${status}" -ne 0 ]
 
+  run is_valid_port "00008"
+  [ "${status}" -eq 0 ]
+
+  run is_positive_integer "00008"
+  [ "${status}" -eq 0 ]
+
+  run is_positive_integer "0"
+  [ "${status}" -ne 0 ]
+
   run is_valid_domain "example.com"
   [ "${status}" -eq 0 ]
 
@@ -84,6 +93,56 @@ teardown() {
   [ "$(cat "${HY2_CONF_DIR}/server.key")" = "stable-key" ]
 }
 
+@test "runtime snapshot should replace stale backups and preserve absent files" {
+  printf "stable-config" > "${HY2_CONF_FILE}"
+  printf "stable-meta" > "${HY2_META_FILE}"
+  printf "stale-cert" > "${HY2_BACKUP_DIR}/server.crt.bak"
+
+  backup_runtime_files
+  [ "$?" -eq 0 ]
+  [ ! -e "${HY2_BACKUP_DIR}/server.crt.bak" ]
+  [ -f "${HY2_BACKUP_DIR}/server.crt.bak.absent" ]
+
+  printf "generated-cert" > "${HY2_CONF_DIR}/server.crt"
+  printf "generated-key" > "${HY2_CONF_DIR}/server.key"
+  restore_runtime_files
+  [ "$?" -eq 0 ]
+  [ ! -e "${HY2_CONF_DIR}/server.crt" ]
+  [ ! -e "${HY2_CONF_DIR}/server.key" ]
+}
+
+@test "manual CA backup restore should remove stale self-signed files" {
+  systemctl() {
+    case "${1:-}" in
+      show) echo "root" ;;
+      restart) return 0 ;;
+    esac
+    return 0
+  }
+
+  cat > "${HY2_CONF_FILE}" <<'EOF'
+listen: :443
+acme:
+  domains:
+    - example.com
+EOF
+  printf "stable-meta" > "${HY2_META_FILE}"
+  create_manual_backup
+  [ "$?" -eq 0 ]
+
+  printf "changed-config" > "${HY2_CONF_FILE}"
+  printf "changed-meta" > "${HY2_META_FILE}"
+  printf "stale-cert" > "${HY2_CONF_DIR}/server.crt"
+  printf "stale-key" > "${HY2_CONF_DIR}/server.key"
+
+  restore_latest_manual_backup
+  [ "$?" -eq 0 ]
+  grep -Fq "acme:" "${HY2_CONF_FILE}"
+  [ "$(cat "${HY2_META_FILE}")" = "stable-meta" ]
+  [ ! -e "${HY2_CONF_DIR}/server.crt" ]
+  [ ! -e "${HY2_CONF_DIR}/server.key" ]
+}
+
 @test "show_service_failure_hint should classify permission denied logs" {
   journalctl() {
     cat <<'EOF'
@@ -118,8 +177,10 @@ EOF
   [[ "${output}" == *"v2rayN / Xray 自签证书提醒"* ]]
   [[ "${output}" == *"insecure=1"* ]]
   [[ "${output}" == *"pinSHA256"* ]]
+  [[ "${output}" == *"pcs"* ]]
   [[ "${output}" == *"Xray-core >= 26.2.6"* ]]
   [[ "${output}" == *"pinnedPeerCertSha256"* ]]
+  [[ "${output}" == *"已移除 allowInsecure"* ]]
   [[ "${output}" == *"重新导入节点"* ]]
 }
 
@@ -127,16 +188,23 @@ EOF
   cert_sha="0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
   run render_hysteria2_share_url "8.8.8.8" "45612" "pa ss" "bing.com" "true" "${cert_sha}"
   [ "${status}" -eq 0 ]
-  [ "${output}" = "hysteria2://pa%20ss@8.8.8.8:45612/?sni=bing.com&insecure=1&allowInsecure=1&pinSHA256=${cert_sha}#Hysteria2-LuoPo" ]
+  [ "${output}" = "hysteria2://pa%20ss@8.8.8.8:45612/?sni=bing.com&insecure=1&pinSHA256=${cert_sha}&pcs=${cert_sha}#Hysteria2-LuoPo" ]
+  [[ "${output}" != *"allowInsecure"* ]]
 
   run render_hysteria2_share_url "2001:db8::1" "443" "abc123" "example.com" "false"
   [ "${status}" -eq 0 ]
-  [ "${output}" = "hysteria2://abc123@[2001:db8::1]:443/?sni=example.com&insecure=0&allowInsecure=0#Hysteria2-LuoPo" ]
+  [ "${output}" = "hysteria2://abc123@[2001:db8::1]:443/?sni=example.com#Hysteria2-LuoPo" ]
 }
 
 @test "hysteria2 share URL should reject invalid insecure values" {
   run render_hysteria2_share_url "8.8.8.8" "443" "abc123" "bing.com" "yes"
   [ "${status}" -ne 0 ]
+}
+
+@test "URL encoder should percent-encode UTF-8 bytes" {
+  run url_encode "密码"
+  [ "${status}" -eq 0 ]
+  [ "${output}" = "%E5%AF%86%E7%A0%81" ]
 }
 
 @test "certificate fingerprint normalizer should return lowercase hex" {
@@ -156,6 +224,29 @@ EOF
   [[ "${output}" == *"pinSHA256: ${cert_sha}"* ]]
 }
 
+@test "native Hysteria2 YAML should quote special values and format IPv6" {
+  run render_v2rayn_yaml_snippet "2001:db8::1" "443" "pa'ss #1" "20" "100" "example.com" "false"
+  [ "${status}" -eq 0 ]
+  [[ "${output}" == *"server: '[2001:db8::1]:443'"* ]]
+  [[ "${output}" == *"auth: 'pa''ss #1'"* ]]
+  [[ "${output}" == *"sni: 'example.com'"* ]]
+}
+
+@test "verify_hy2_installer should require Bash syntax and shebang" {
+  installer_file="${TMP_DIR}/hysteria-installer.sh"
+  cat > "${installer_file}" <<'EOF'
+#!/usr/bin/env bash
+echo "Hysteria installer"
+EOF
+
+  run verify_hy2_installer "${installer_file}"
+  [ "${status}" -eq 0 ]
+
+  printf '\nif then\n' >> "${installer_file}"
+  run verify_hy2_installer "${installer_file}"
+  [ "${status}" -ne 0 ]
+}
+
 @test "verify_downloaded_panel should require a valid panel version" {
   panel_file="${TMP_DIR}/hy2-valid.sh"
   cat > "${panel_file}" <<'EOF'
@@ -170,6 +261,12 @@ EOF
   run extract_panel_version "${panel_file}"
   [ "${status}" -eq 0 ]
   [ "${output}" = "v9.8.7" ]
+
+  printf '\nif then\n' >> "${panel_file}"
+  run verify_downloaded_panel "${panel_file}"
+  [ "${status}" -ne 0 ]
+  sed -i '$d' "${panel_file}"
+  sed -i '$d' "${panel_file}"
 
   sed -i '/^sh_ver=/d' "${panel_file}"
   run verify_downloaded_panel "${panel_file}"

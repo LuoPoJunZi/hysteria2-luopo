@@ -9,12 +9,12 @@ on:
       - 'install.sh'
       - 'README.md'
       - 'CHANGELOG.md'
-      - 'scripts/verify.sh'
-      - 'scripts/check-menu-sync.sh'
-      - 'scripts/check-version-sync.sh'
-      - 'scripts/check-release-package.sh'
-      - 'scripts/smoke-e2e.sh'
+      - 'LICENSE'
+      - 'scripts/**'
       - 'tests/**'
+      - '.editorconfig'
+      - '.gitattributes'
+      - '.gitignore'
       - '.github/workflows/release.yml'
   workflow_dispatch: # 手动触发按钮
 
@@ -35,17 +35,20 @@ jobs:
         run: |
           # 从 hy2.sh 中提取 sh_ver 变量的值
           VERSION=$(sed -n 's/^sh_ver="\(v[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\)".*/\1/p' hy2.sh | head -n 1 || echo "")
-          
+
           if [ -z "$VERSION" ]; then
             echo "❌ 致命错误：无法在 hy2.sh 中找到 sh_ver 变量！请确保代码中有 sh_ver=\"v1.0.0\" 这样的定义。"
             exit 1
           fi
-          
+
           echo "成功提取到版本号: $VERSION"
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
-          
-          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "none")
-          echo "LATEST_TAG=$LATEST_TAG" >> $GITHUB_ENV
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+          if git rev-parse --verify --quiet "refs/tags/$VERSION" >/dev/null; then
+            echo "VERSION_TAG_EXISTS=true" >> "$GITHUB_ENV"
+          else
+            echo "VERSION_TAG_EXISTS=false" >> "$GITHUB_ENV"
+          fi
 
       - name: Install verification dependencies
         run: |
@@ -53,10 +56,13 @@ jobs:
           sudo apt-get install -y shellcheck bats
 
       - name: Make verify scripts executable
-        run: chmod +x scripts/verify.sh scripts/check-menu-sync.sh scripts/check-version-sync.sh scripts/check-release-package.sh scripts/smoke-e2e.sh tests/e2e/config-flow.sh
+        run: chmod +x scripts/verify.sh scripts/check-style.sh scripts/check-menu-sync.sh scripts/check-version-sync.sh scripts/check-release-package.sh scripts/smoke-e2e.sh tests/e2e/config-flow.sh
 
       - name: Run bash syntax checks
         run: ./scripts/verify.sh syntax
+
+      - name: Check repository style
+        run: ./scripts/verify.sh style
 
       - name: Run shellcheck
         run: ./scripts/verify.sh shellcheck
@@ -82,12 +88,12 @@ jobs:
       - name: Check if Release is Needed
         id: check_release
         run: |
-          if [ "${{ env.VERSION }}" == "${{ env.LATEST_TAG }}" ]; then
+          if [ "${{ env.VERSION_TAG_EXISTS }}" = "true" ]; then
             echo "版本 ${{ env.VERSION }} 已存在，无需发布新 Release。自动跳过。"
-            echo "should_release=false" >> $GITHUB_ENV
+            echo "should_release=false" >> "$GITHUB_ENV"
           else
             echo "检测到新版本: ${{ env.VERSION }}。准备自动发布！"
-            echo "should_release=true" >> $GITHUB_ENV
+            echo "should_release=true" >> "$GITHUB_ENV"
           fi
 
       - name: Package Code

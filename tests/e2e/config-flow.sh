@@ -18,6 +18,17 @@ assert_contains_file() {
   fi
 }
 
+assert_file_equals() {
+  local file="$1"
+  local expected="$2"
+  local label="$3"
+  local actual
+  actual="$(cat "${file}")"
+  if [[ "${actual}" != "${expected}" ]]; then
+    fail "${label} (expected: ${expected}, actual: ${actual})"
+  fi
+}
+
 tmp_dir="$(mktemp -d)"
 cleanup() {
   rm -rf "${tmp_dir}"
@@ -65,5 +76,17 @@ assert_contains_file "${HY2_META_FILE}" "sni=example.com" "meta sni mismatch"
 assert_contains_file "${HY2_META_FILE}" "insecure=false" "meta insecure mismatch"
 assert_contains_file "${HY2_META_FILE}" "up_mbps=30" "meta up_mbps mismatch"
 assert_contains_file "${HY2_META_FILE}" "down_mbps=60" "meta down_mbps mismatch"
+
+echo "[INFO] Replaying pre-restart failure rollback..."
+printf "stable-config" > "${HY2_CONF_FILE}"
+printf "stable-meta" > "${HY2_META_FILE}"
+fetch_server_ip() { :; }
+
+if config_hy2 <<< $'34567\nnext-password\n\n40\n80\n1\nnext.example.com\n\n'; then
+  fail "config_hy2 should fail when public IP lookup is empty"
+fi
+
+assert_file_equals "${HY2_CONF_FILE}" "stable-config" "config should roll back after IP lookup failure"
+assert_file_equals "${HY2_META_FILE}" "stable-meta" "meta should roll back after IP lookup failure"
 
 echo "[OK] E2E config flow replay passed."

@@ -8,13 +8,14 @@ on:
     paths:
       - 'hy2.sh'
       - 'install.sh'
-      - 'scripts/verify.sh'
-      - 'scripts/check-menu-sync.sh'
-      - 'scripts/check-version-sync.sh'
-      - 'scripts/check-release-package.sh'
-      - 'scripts/smoke-e2e.sh'
+      - 'README.md'
+      - 'CHANGELOG.md'
+      - 'scripts/**'
       - 'tests/**'
-      - '.github/workflows/lint.yml'
+      - '.editorconfig'
+      - '.gitattributes'
+      - '.gitignore'
+      - '.github/workflows/*.yml'
 
 jobs:
   verify-ubuntu:
@@ -27,10 +28,13 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y shellcheck bats
 
       - name: Make verify script executable
-        run: chmod +x scripts/verify.sh scripts/check-menu-sync.sh scripts/check-version-sync.sh scripts/check-release-package.sh scripts/smoke-e2e.sh tests/e2e/config-flow.sh
+        run: chmod +x scripts/verify.sh scripts/check-style.sh scripts/check-menu-sync.sh scripts/check-version-sync.sh scripts/check-release-package.sh scripts/smoke-e2e.sh tests/e2e/config-flow.sh
 
       - name: Run bash syntax checks
         run: ./scripts/verify.sh syntax
+
+      - name: Check repository style
+        run: ./scripts/verify.sh style
 
       - name: Run shellcheck
         run: ./scripts/verify.sh shellcheck
@@ -64,10 +68,13 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Make verify script executable
-        run: chmod +x scripts/verify.sh scripts/check-menu-sync.sh scripts/check-version-sync.sh scripts/check-release-package.sh scripts/smoke-e2e.sh tests/e2e/config-flow.sh
+        run: chmod +x scripts/verify.sh scripts/check-style.sh scripts/check-menu-sync.sh scripts/check-version-sync.sh scripts/check-release-package.sh scripts/smoke-e2e.sh tests/e2e/config-flow.sh
 
       - name: Run bash syntax checks
         run: ./scripts/verify.sh syntax
+
+      - name: Check repository style
+        run: ./scripts/verify.sh style
 
       - name: Run shellcheck
         run: ./scripts/verify.sh shellcheck

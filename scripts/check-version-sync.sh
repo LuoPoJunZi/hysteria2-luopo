@@ -14,11 +14,14 @@ if [[ -z "${version}" ]]; then
     fail "Cannot extract sh_ver from hy2.sh"
 fi
 
-major_minor="$(echo "${version}" | sed -E 's/^v([0-9]+\.[0-9]+)\..*$/\1/')"
-readme_marker="Hysteria2-LuoPo 管理面板 V${major_minor}"
+readme_marker="Hysteria2-LuoPo 管理面板 ${version}"
 
 if ! grep -Fq "${readme_marker}" README.md; then
     fail "README preview version is out of sync. Expected marker: ${readme_marker}"
+fi
+
+if ! grep -Eq "^## ${version}( - [0-9]{4}-[0-9]{2}-[0-9]{2})?$" CHANGELOG.md; then
+    fail "CHANGELOG is missing a section for ${version}"
 fi
 
 echo "[OK] Version markers are in sync (${version})."

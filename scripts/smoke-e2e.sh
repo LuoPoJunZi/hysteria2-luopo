@@ -72,8 +72,11 @@ mkdir -p "${HY2_CONF_DIR}" "${HY2_BACKUP_DIR}"
 echo "[INFO] Running validator checks..."
 is_valid_port "1" || fail "port 1 should be valid"
 is_valid_port "65535" || fail "port 65535 should be valid"
+is_valid_port "00008" || fail "port with leading zeros should be parsed as decimal"
 ! is_valid_port "0" || fail "port 0 should be invalid"
 ! is_valid_port "70000" || fail "port 70000 should be invalid"
+is_positive_integer "00008" || fail "positive integer with leading zeros should be valid"
+! is_positive_integer "0" || fail "zero should not be a positive integer"
 is_valid_domain "example.com" || fail "example.com should be valid domain"
 ! is_valid_domain "-bad.com" || fail "-bad.com should be invalid domain"
 is_valid_url "https://bing.com" || fail "https URL should be valid"
@@ -114,13 +117,18 @@ assert_eq "${PICKED_SNI}" "bing.com" "invalid SNI fallback mismatch"
 echo "[INFO] Running share snippet checks..."
 cert_sha="0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 share_url="$(render_hysteria2_share_url "8.8.8.8" "45612" "pa ss" "bing.com" "true" "${cert_sha}")"
-assert_eq "${share_url}" "hysteria2://pa%20ss@8.8.8.8:45612/?sni=bing.com&insecure=1&allowInsecure=1&pinSHA256=${cert_sha}#Hysteria2-LuoPo" "Hysteria2 share URL mismatch"
+assert_eq "${share_url}" "hysteria2://pa%20ss@8.8.8.8:45612/?sni=bing.com&insecure=1&pinSHA256=${cert_sha}&pcs=${cert_sha}#Hysteria2-LuoPo" "Hysteria2 share URL mismatch"
 if [[ "${share_url}" == *"insecure=true"* ]]; then
     fail "Hysteria2 share URL must use insecure=1 instead of insecure=true"
 fi
+if [[ "${share_url}" == *"allowInsecure"* ]]; then
+    fail "Hysteria2 share URL must not contain removed allowInsecure"
+fi
+
+assert_eq "$(url_encode "密码")" "%E5%AF%86%E7%A0%81" "UTF-8 URL encoding mismatch"
 
 secure_share_url="$(render_hysteria2_share_url "2001:db8::1" "443" "abc123" "example.com" "false")"
-assert_eq "${secure_share_url}" "hysteria2://abc123@[2001:db8::1]:443/?sni=example.com&insecure=0&allowInsecure=0#Hysteria2-LuoPo" "secure Hysteria2 share URL mismatch"
+assert_eq "${secure_share_url}" "hysteria2://abc123@[2001:db8::1]:443/?sni=example.com#Hysteria2-LuoPo" "secure Hysteria2 share URL mismatch"
 
 normalized_sha="$(normalize_certificate_sha256 "sha256 Fingerprint=01:23:45:67:89:AB:CD:EF:01:23:45:67:89:AB:CD:EF:01:23:45:67:89:AB:CD:EF:01:23:45:67:89:AB:CD:EF")"
 assert_eq "${normalized_sha}" "${cert_sha}" "certificate SHA-256 normalization mismatch"
@@ -146,16 +154,22 @@ if [[ "${rendered_full_json}" == *"\"detour\": \"direct\""* ]]; then
 fi
 
 rendered_yaml="$(render_v2rayn_yaml_snippet "8.8.8.8" "45612" "abc123" "20" "100" "bing.com" "true" "${cert_sha}")"
-assert_contains "${rendered_yaml}" "server: 8.8.8.8:45612" "v2rayN server line missing"
-assert_contains "${rendered_yaml}" "auth: abc123" "v2rayN auth line missing"
+assert_contains "${rendered_yaml}" "server: '8.8.8.8:45612'" "v2rayN server line missing"
+assert_contains "${rendered_yaml}" "auth: 'abc123'" "v2rayN auth line missing"
 assert_contains "${rendered_yaml}" "pinSHA256: ${cert_sha}" "native Hysteria2 certificate pin missing"
+
+special_yaml="$(render_v2rayn_yaml_snippet "2001:db8::1" "443" "pa'ss #1" "20" "100" "example.com" "false")"
+assert_contains "${special_yaml}" "server: '[2001:db8::1]:443'" "v2rayN IPv6 server formatting mismatch"
+assert_contains "${special_yaml}" "auth: 'pa''ss #1'" "v2rayN auth YAML escaping mismatch"
 
 notice_output="$(print_v2rayn_insecure_notice 2>&1)"
 assert_contains "${notice_output}" "v2rayN / Xray 自签证书提醒" "v2rayN insecure notice title missing"
 assert_contains "${notice_output}" "insecure=1" "v2rayN insecure notice URI value missing"
 assert_contains "${notice_output}" "pinSHA256" "v2rayN certificate pin notice missing"
+assert_contains "${notice_output}" "pcs" "v2rayN Xray URI pin parameter missing"
 assert_contains "${notice_output}" "Xray-core >= 26.2.6" "v2rayN Xray version notice missing"
 assert_contains "${notice_output}" "pinnedPeerCertSha256" "v2rayN Xray pin mapping notice missing"
+assert_contains "${notice_output}" "已移除 allowInsecure" "removed allowInsecure notice missing"
 
 assert_eq "$(format_host_for_url "2001:db8::1")" "[2001:db8::1]" "IPv6 host formatting mismatch"
 assert_eq "$(format_host_for_url "8.8.8.8")" "8.8.8.8" "IPv4 host formatting mismatch"
@@ -174,10 +188,40 @@ fi
 assert_eq "${__mock_systemctl_calls}" "2" "rollback restart call count mismatch"
 assert_eq "$(cat "${HY2_CONF_FILE}")" "stable-config" "config should be restored after rollback"
 
+printf "stale-cert" > "${HY2_BACKUP_DIR}/server.crt.bak"
+rm -f "${HY2_CONF_DIR}/server.crt" "${HY2_CONF_DIR}/server.key"
+backup_runtime_files || fail "backup_runtime_files should replace stale backup state"
+[[ ! -e "${HY2_BACKUP_DIR}/server.crt.bak" ]] || fail "stale certificate backup should be removed"
+[[ -f "${HY2_BACKUP_DIR}/server.crt.bak.absent" ]] || fail "missing certificate marker should be created"
+printf "generated-cert" > "${HY2_CONF_DIR}/server.crt"
+printf "generated-key" > "${HY2_CONF_DIR}/server.key"
+restore_runtime_files || fail "restore_runtime_files should restore absent-file state"
+[[ ! -e "${HY2_CONF_DIR}/server.crt" ]] || fail "generated certificate should be removed during rollback"
+[[ ! -e "${HY2_CONF_DIR}/server.key" ]] || fail "generated private key should be removed during rollback"
+
 __mock_systemctl_mode="always_success"
 __mock_systemctl_calls=0
 restart_service_with_rollback || fail "restart_service_with_rollback should pass when restart succeeds"
 assert_eq "${__mock_systemctl_calls}" "1" "success restart call count mismatch"
+
+echo "[INFO] Running manual backup/restore checks..."
+cat > "${HY2_CONF_FILE}" <<'EOF'
+listen: :443
+acme:
+  domains:
+    - example.com
+EOF
+printf "manual-meta" > "${HY2_META_FILE}"
+create_manual_backup || fail "manual CA backup should succeed"
+printf "changed-config" > "${HY2_CONF_FILE}"
+printf "changed-meta" > "${HY2_META_FILE}"
+printf "stale-cert" > "${HY2_CONF_DIR}/server.crt"
+printf "stale-key" > "${HY2_CONF_DIR}/server.key"
+restore_latest_manual_backup || fail "manual CA backup restore should succeed"
+grep -Fq "acme:" "${HY2_CONF_FILE}" || fail "manual backup should restore CA config"
+assert_eq "$(cat "${HY2_META_FILE}")" "manual-meta" "manual backup should restore meta"
+[[ ! -e "${HY2_CONF_DIR}/server.crt" ]] || fail "CA restore should remove stale certificate"
+[[ ! -e "${HY2_CONF_DIR}/server.key" ]] || fail "CA restore should remove stale private key"
 
 echo "[INFO] Running failure hint checks..."
 __mock_journalctl_log="FATAL failed to read server config {\"error\": \"open /etc/hysteria/config.yaml: permission denied\"}"
@@ -193,6 +237,15 @@ hint_output="$(show_service_failure_hint 2>&1 || true)"
 assert_contains "${hint_output}" "CA 证书申请失败" "acme hint missing"
 
 echo "[INFO] Running panel download verification checks..."
+installer_file="${tmp_dir}/hysteria-installer.sh"
+cat > "${installer_file}" <<'EOF'
+#!/usr/bin/env bash
+echo "Hysteria installer"
+EOF
+verify_hy2_installer "${installer_file}" || fail "valid Hysteria installer should pass"
+printf '\nif then\n' >> "${installer_file}"
+! verify_hy2_installer "${installer_file}" || fail "invalid Hysteria installer syntax should fail"
+
 panel_file="${tmp_dir}/hy2-valid.sh"
 cat > "${panel_file}" <<'EOF'
 #!/bin/bash
@@ -202,7 +255,15 @@ main_menu() { :; }
 EOF
 verify_downloaded_panel "${panel_file}" || fail "valid downloaded panel should pass"
 assert_eq "$(extract_panel_version "${panel_file}")" "v9.8.7" "downloaded panel version mismatch"
+printf '\nif then\n' >> "${panel_file}"
+! verify_downloaded_panel "${panel_file}" || fail "downloaded panel with invalid syntax should fail"
+sed -i '$d' "${panel_file}"
+sed -i '$d' "${panel_file}"
 sed -i '/^sh_ver=/d' "${panel_file}"
 ! verify_downloaded_panel "${panel_file}" || fail "downloaded panel without version should fail"
+
+if grep -Fq 'hy2.evzzz.com' hy2.sh install.sh README.md; then
+    fail "deprecated custom-domain installer should not be present"
+fi
 
 echo "[OK] Smoke E2E checks passed."
