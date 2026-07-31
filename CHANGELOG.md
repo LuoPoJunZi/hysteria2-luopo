@@ -1,5 +1,12 @@
 # Changelog
 
+## v26.7.31 - 2026-07-31
+
+- Hysteria2 自签分享链接移除 `allowInsecure`，同时输出原生客户端使用的 `pinSHA256` 与 v2rayN/Xray 使用的 `pcs` 证书指纹参数。
+- 强化配置变更、手动备份与恢复流程，完整处理配置、元数据、证书和私钥，并在失败时自动回滚。
+- Hysteria2 内核安装与面板更新改为先下载、校验 Bash 语法，再执行或覆盖目标文件。
+- 新增仓库文本规范检查，扩展 GitHub Actions、Smoke E2E、Bats 与交互配置回放测试。
+
 ## v26.7.15 - 2026-07-15
 
 - README 删除 `hy2.evzzz.com` 域名安装方式，仅保留 GitHub 官方仓库的 `install.sh` 一键安装命令。
