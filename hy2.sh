@@ -7,7 +7,7 @@
 # 交互式主面板不启用全局 errexit，各外部命令在对应流程中显式处理失败与回滚。
 
 # --- 1. 全局变量与颜色输出 ---
-sh_ver="v26.7.31"
+sh_ver="v26.8.3"
 
 _red="\033[0;31m"
 _green="\033[0;32m"
@@ -187,6 +187,9 @@ render_hysteria2_share_url() {
 
     if [[ -n "${cert_sha}" ]]; then
         cert_sha="$(normalize_certificate_sha256 "${cert_sha}")" || return 1
+    fi
+    if [[ "${insecure}" == "true" && -z "${cert_sha}" ]]; then
+        return 1
     fi
 
     query="sni=$(url_encode "${sni}")"
@@ -1213,12 +1216,19 @@ show_info() {
         if [[ -n "${cert_sha}" ]]; then
             echo -e "  [*] 证书指纹  : ${_yellow}${cert_sha}${_plain}"
         else
-            echo -e "  [!] 证书指纹  : ${_red}读取失败，Xray 内核暂不可用${_plain}"
+            echo -e "  [!] 证书指纹  : ${_red}读取失败，已禁止导出客户端链接${_plain}"
         fi
     fi
     echo -e "  [*] 上行带宽  : ${_yellow}${up_mbps}${_plain} Mbps"
     echo -e "  [*] 下行带宽  : ${_yellow}${down_mbps}${_plain} Mbps"
     print_line
+
+    if [[ "${insecure}" == "true" && -z "${cert_sha}" ]]; then
+        err "自签证书指纹读取失败，无法安全生成客户端分享链接。"
+        echo -e "  请通过主菜单 (2) 重新配置自签证书后再导出。"
+        wait_return
+        return 1
+    fi
 
     if [[ "${insecure}" == "true" ]]; then
         print_v2rayn_insecure_notice

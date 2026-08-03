@@ -124,6 +124,9 @@ fi
 if [[ "${share_url}" == *"allowInsecure"* ]]; then
     fail "Hysteria2 share URL must not contain removed allowInsecure"
 fi
+if render_hysteria2_share_url "8.8.8.8" "45612" "abc123" "bing.com" "true" >/dev/null 2>&1; then
+    fail "self-signed Hysteria2 share URL must require a certificate fingerprint"
+fi
 
 assert_eq "$(url_encode "密码")" "%E5%AF%86%E7%A0%81" "UTF-8 URL encoding mismatch"
 

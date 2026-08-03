@@ -1,5 +1,9 @@
 # Changelog
 
+## v26.8.3 - 2026-08-03
+
+- 自签证书指纹缺失或读取失败时停止生成客户端分享链接，避免 v2rayN/Xray 退回使用已移除的 `allowInsecure` 路径。
+
 ## v26.7.31 - 2026-07-31
 
 - Hysteria2 自签分享链接移除 `allowInsecure`，同时输出原生客户端使用的 `pinSHA256` 与 v2rayN/Xray 使用的 `pcs` 证书指纹参数。

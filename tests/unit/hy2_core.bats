@@ -201,6 +201,11 @@ EOF
   [ "${status}" -ne 0 ]
 }
 
+@test "self-signed hysteria2 share URL should require a certificate fingerprint" {
+  run render_hysteria2_share_url "8.8.8.8" "443" "abc123" "bing.com" "true"
+  [ "${status}" -ne 0 ]
+}
+
 @test "URL encoder should percent-encode UTF-8 bytes" {
   run url_encode "密码"
   [ "${status}" -eq 0 ]
