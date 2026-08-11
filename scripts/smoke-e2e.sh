@@ -83,6 +83,10 @@ is_valid_url "https://bing.com" || fail "https URL should be valid"
 ! is_valid_url "ftp://example.com" || fail "ftp URL should be invalid"
 is_valid_email "dev@example.com" || fail "email should be valid"
 ! is_valid_email "dev@localhost" || fail "email without TLD should be invalid"
+version_at_least "v2.12.1" "2.12.1" || fail "equal versions should satisfy minimum"
+version_at_least "2.13.0" "2.12.1" || fail "newer version should satisfy minimum"
+! version_at_least "2.12.0" "2.12.1" || fail "older version should not satisfy minimum"
+! version_at_least "invalid" "2.12.1" || fail "invalid version should be rejected"
 
 echo "[INFO] Running config generation checks..."
 write_self_signed_config "443" "pa'ss" "https://example.com"
@@ -136,12 +140,14 @@ assert_eq "${secure_share_url}" "hysteria2://abc123@[2001:db8::1]:443/?sni=examp
 normalized_sha="$(normalize_certificate_sha256 "sha256 Fingerprint=01:23:45:67:89:AB:CD:EF:01:23:45:67:89:AB:CD:EF:01:23:45:67:89:AB:CD:EF:01:23:45:67:89:AB:CD:EF")"
 assert_eq "${normalized_sha}" "${cert_sha}" "certificate SHA-256 normalization mismatch"
 
-rendered_json="$(render_singbox_outbound_snippet "8.8.8.8" "45612" "20" "100" "abc123" "bing.com" "true")"
+singbox_public_key_sha="47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU="
+rendered_json="$(render_singbox_outbound_snippet "8.8.8.8" "45612" "20" "100" "abc123" "bing.com" "true" "${singbox_public_key_sha}")"
 assert_contains "${rendered_json}" "\"type\": \"hysteria2\"" "sing-box type missing"
 assert_contains "${rendered_json}" "\"server_port\": 45612" "sing-box port missing"
 assert_contains "${rendered_json}" "\"server_name\": \"bing.com\"" "sing-box sni missing"
+assert_contains "${rendered_json}" "\"certificate_public_key_sha256\": [\"${singbox_public_key_sha}\"]" "sing-box public key pin missing"
 
-rendered_full_json="$(render_singbox_full_template "8.8.8.8" "45612" "20" "100" "abc123" "bing.com" "true")"
+rendered_full_json="$(render_singbox_full_template "8.8.8.8" "45612" "20" "100" "abc123" "bing.com" "true" "${singbox_public_key_sha}")"
 assert_contains "${rendered_full_json}" "\"rule_set\": \"geosite-cn\"" "sing-box full template rule_set missing"
 assert_contains "${rendered_full_json}" "\"action\": \"hijack-dns\"" "sing-box full template dns action missing"
 assert_contains "${rendered_full_json}" "\"address\": [" "sing-box full template tun address missing"
@@ -149,12 +155,27 @@ assert_contains "${rendered_full_json}" "\"type\": \"https\"" "sing-box full tem
 assert_contains "${rendered_full_json}" "\"detour\": \"proxy\"" "sing-box full template remote dns detour missing"
 assert_contains "${rendered_full_json}" "\"default_domain_resolver\": \"cf\"" "sing-box full template default resolver missing"
 assert_contains "${rendered_full_json}" "\"download_detour\": \"proxy\"" "sing-box full template rule-set download detour missing"
+assert_contains "${rendered_full_json}" "\"certificate_public_key_sha256\": [\"${singbox_public_key_sha}\"]" "sing-box full template public key pin missing"
 if [[ "${rendered_full_json}" == *"\"geosite\":"* || "${rendered_full_json}" == *"\"geoip\":"* || "${rendered_full_json}" == *"\"inet4_address\""* || "${rendered_full_json}" == *"\"type\": \"dns\""* ]]; then
     fail "sing-box full template should not contain removed legacy fields"
 fi
 if [[ "${rendered_full_json}" == *"\"detour\": \"direct\""* ]]; then
     fail "sing-box full template should not detour local dns to direct outbound"
 fi
+if render_singbox_outbound_snippet "8.8.8.8" "443" "20" "100" "abc123" "bing.com" "true" >/dev/null 2>&1; then
+    fail "self-signed sing-box output must require a public key pin"
+fi
+secure_singbox_json="$(render_singbox_outbound_snippet "8.8.8.8" "443" "20" "100" "abc123" "example.com" "false")"
+if [[ "${secure_singbox_json}" == *"certificate_public_key_sha256"* ]]; then
+    fail "CA sing-box output should not contain a self-signed public key pin"
+fi
+
+if [[ "${OSTYPE:-}" == msys* ]]; then
+    export MSYS2_ARG_CONV_EXCL="/CN="
+fi
+generate_self_signed_certificate "bing.com" || fail "self-signed certificate generation should succeed"
+generated_public_key_sha="$(get_certificate_public_key_sha256 "${HY2_CONF_DIR}/server.crt")"
+is_valid_certificate_public_key_sha256 "${generated_public_key_sha}" || fail "generated public key SHA-256 should be valid"
 
 rendered_yaml="$(render_v2rayn_yaml_snippet "8.8.8.8" "45612" "abc123" "20" "100" "bing.com" "true" "${cert_sha}")"
 assert_contains "${rendered_yaml}" "server: '8.8.8.8:45612'" "v2rayN server line missing"
@@ -171,6 +192,8 @@ assert_contains "${notice_output}" "insecure=1" "v2rayN insecure notice URI valu
 assert_contains "${notice_output}" "pinSHA256" "v2rayN certificate pin notice missing"
 assert_contains "${notice_output}" "pcs" "v2rayN Xray URI pin parameter missing"
 assert_contains "${notice_output}" "Xray-core >= 26.2.6" "v2rayN Xray version notice missing"
+assert_contains "${notice_output}" "v2rayN >= 7.24.4" "v2rayN security version notice missing"
+assert_contains "${notice_output}" "Sing-box >= 1.13.0" "sing-box pin version notice missing"
 assert_contains "${notice_output}" "pinnedPeerCertSha256" "v2rayN Xray pin mapping notice missing"
 assert_contains "${notice_output}" "已移除 allowInsecure" "removed allowInsecure notice missing"
 

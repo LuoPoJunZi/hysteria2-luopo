@@ -1,5 +1,11 @@
 # Changelog
 
+## v26.8.11 - 2026-08-11
+
+- Sing-box 自签配置新增 `certificate_public_key_sha256` 公钥固定，校验值缺失时拒绝导出，最低兼容版本调整为 Sing-box 1.13.0。
+- Hysteria2 内核诊断增加版本检查，低于 v2.12.1 时提示更新，并在内核安装完成后显示实际版本。
+- 更新 v2rayN 安全版本建议以及 GitHub Actions 的 checkout、Release 发布依赖。
+
 ## v26.8.3 - 2026-08-03
 
 - 自签证书指纹缺失或读取失败时停止生成客户端分享链接，避免 v2rayN/Xray 退回使用已移除的 `allowInsecure` 路径。

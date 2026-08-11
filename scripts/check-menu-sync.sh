@@ -34,7 +34,7 @@ assert_contains "hy2.sh" "(0)  退出面板" "hy2.sh menu item 0 spacing mismatc
 
 assert_contains "README.md" "➡️ 请选择操作 [0-12]:" "README menu range mismatch"
 assert_contains "README.md" "快捷启动: hy2" "README quick launch label mismatch"
-assert_contains "README.md" "内核版本: v2.8.1    服务状态: 运行中" "README status label mismatch"
+assert_contains "README.md" "内核版本: v2.12.1    服务状态: 运行中" "README status label mismatch"
 assert_contains "README.md" "-----------------------------------------------------" "README status separator mismatch"
 assert_contains "README.md" "节点核心管理" "README node section label mismatch"
 assert_contains "README.md" "服务运行控制" "README service section label mismatch"

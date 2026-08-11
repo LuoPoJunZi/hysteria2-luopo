@@ -7,7 +7,7 @@
 # 交互式主面板不启用全局 errexit，各外部命令在对应流程中显式处理失败与回滚。
 
 # --- 1. 全局变量与颜色输出 ---
-sh_ver="v26.8.3"
+sh_ver="v26.8.11"
 
 _red="\033[0;31m"
 _green="\033[0;32m"
@@ -26,6 +26,7 @@ PANEL_UPDATE_URL="https://raw.githubusercontent.com/LuoPoJunZi/hysteria2-luopo/m
 PANEL_TARGET_BIN="/usr/local/bin/hy2"
 PANEL_BACKUP_PREFIX="/usr/local/bin/hy2.bak"
 HY2_INSTALL_URL="https://get.hy2.sh/"
+RECOMMENDED_HY2_VERSION="2.12.1"
 DEFAULT_PORT=443
 DEFAULT_MASQUERADE_URL="https://bing.com"
 DEFAULT_SELF_SNI="bing.com"
@@ -85,6 +86,30 @@ ensure_hy2_core_installed() {
         return 1
     fi
     return 0
+}
+
+get_hy2_core_version() {
+    command -v hysteria >/dev/null 2>&1 || return 1
+    hysteria version 2>/dev/null | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' | head -n 1
+}
+
+version_at_least() {
+    local current="${1#v}"
+    local minimum="${2#v}"
+    local current_major current_minor current_patch
+    local minimum_major minimum_minor minimum_patch
+
+    [[ "${current}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || return 1
+    [[ "${minimum}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || return 1
+
+    IFS=. read -r current_major current_minor current_patch <<< "${current}"
+    IFS=. read -r minimum_major minimum_minor minimum_patch <<< "${minimum}"
+
+    (( 10#${current_major} > 10#${minimum_major} )) && return 0
+    (( 10#${current_major} < 10#${minimum_major} )) && return 1
+    (( 10#${current_minor} > 10#${minimum_minor} )) && return 0
+    (( 10#${current_minor} < 10#${minimum_minor} )) && return 1
+    (( 10#${current_patch} >= 10#${minimum_patch} ))
 }
 
 is_valid_port() {
@@ -168,6 +193,26 @@ get_certificate_sha256() {
     [[ -f "${cert_file}" ]] || return 1
     fingerprint="$(openssl x509 -in "${cert_file}" -noout -fingerprint -sha256 2>/dev/null)" || return 1
     normalize_certificate_sha256 "${fingerprint}"
+}
+
+is_valid_certificate_public_key_sha256() {
+    local fingerprint="$1"
+    [[ "${fingerprint}" =~ ^[A-Za-z0-9+/]{43}=$ ]]
+}
+
+get_certificate_public_key_sha256() {
+    local cert_file="$1"
+    local fingerprint
+    [[ -f "${cert_file}" ]] || return 1
+    fingerprint="$(
+        set -o pipefail
+        openssl x509 -in "${cert_file}" -pubkey -noout 2>/dev/null |
+            openssl pkey -pubin -outform der 2>/dev/null |
+            openssl dgst -sha256 -binary 2>/dev/null |
+            openssl enc -base64 -A 2>/dev/null
+    )" || return 1
+    is_valid_certificate_public_key_sha256 "${fingerprint}" || return 1
+    printf '%s' "${fingerprint}"
 }
 
 render_hysteria2_share_url() {
@@ -553,6 +598,20 @@ render_singbox_outbound_snippet() {
     local json_password="$5"
     local json_sni="$6"
     local insecure="$7"
+    local public_key_sha="${8:-}"
+    local public_key_field=""
+
+    case "${insecure}" in
+        true)
+            is_valid_certificate_public_key_sha256 "${public_key_sha}" || return 1
+            ;;
+        false) ;;
+        *) return 1 ;;
+    esac
+    if [[ -n "${public_key_sha}" ]]; then
+        is_valid_certificate_public_key_sha256 "${public_key_sha}" || return 1
+        public_key_field="$(printf ',\n    "certificate_public_key_sha256": ["%s"]' "${public_key_sha}")"
+    fi
 
     cat << EOF
 {
@@ -566,7 +625,7 @@ render_singbox_outbound_snippet() {
   "tls": {
     "enabled": true,
     "server_name": "${json_sni}",
-    "insecure": ${insecure}
+    "insecure": ${insecure}${public_key_field}
   }
 }
 EOF
@@ -614,6 +673,8 @@ print_v2rayn_insecure_notice() {
     echo -e "  原生 Hysteria2 使用 insecure=1 与 pinSHA256 验证自签证书。"
     echo -e "  v2rayN / Xray 使用 pcs 映射 pinnedPeerCertSha256。"
     echo -e "  使用 Xray 时请确保：v2rayN >= 7.17.1，Xray-core >= 26.2.6。"
+    echo -e "  建议使用 v2rayN >= 7.24.4，以包含下载器安全修复。"
+    echo -e "  Sing-box 自签配置使用公钥固定，请使用 Sing-box >= 1.13.0。"
     echo -e "  分享链接已移除 allowInsecure，不再依赖已废弃的跳过验证字段。"
     echo -e "  重新生成自签证书后指纹会变化，客户端必须重新导入节点。"
 }
@@ -626,6 +687,20 @@ render_singbox_full_template() {
     local json_password="$5"
     local json_sni="$6"
     local insecure="$7"
+    local public_key_sha="${8:-}"
+    local public_key_field=""
+
+    case "${insecure}" in
+        true)
+            is_valid_certificate_public_key_sha256 "${public_key_sha}" || return 1
+            ;;
+        false) ;;
+        *) return 1 ;;
+    esac
+    if [[ -n "${public_key_sha}" ]]; then
+        is_valid_certificate_public_key_sha256 "${public_key_sha}" || return 1
+        public_key_field="$(printf ',\n        "certificate_public_key_sha256": ["%s"]' "${public_key_sha}")"
+    fi
 
     cat << EOF
 {
@@ -680,7 +755,7 @@ render_singbox_full_template() {
       "tls": {
         "enabled": true,
         "server_name": "${json_sni}",
-        "insecure": ${insecure}
+        "insecure": ${insecure}${public_key_field}
       }
     },
     {
@@ -844,7 +919,7 @@ verify_hy2_installer() {
 }
 
 install_hy2_core() {
-    local installer_file
+    local installer_file installed_version
 
     if command -v hysteria &> /dev/null; then
         msg "Hysteria2 内核已安装，正在尝试更新..."
@@ -881,7 +956,13 @@ install_hy2_core() {
         err "已安装内核，但设置开机自启失败，请手动执行: systemctl enable ${HY2_SERVICE}"
         return 1
     fi
-    ok "Hysteria2 内核部署/更新完成！"
+    installed_version="$(get_hy2_core_version 2>/dev/null || true)"
+    if [[ -n "${installed_version}" ]]; then
+        ok "Hysteria2 内核部署/更新完成，当前版本: ${installed_version}"
+    else
+        ok "Hysteria2 内核部署/更新完成！"
+        msg "暂时无法读取内核版本，可返回主菜单再次查看。"
+    fi
 }
 
 verify_downloaded_panel() {
@@ -1198,9 +1279,10 @@ show_info() {
         return
     fi
 
-    local cert_sha=""
+    local cert_sha="" cert_public_key_sha=""
     if [[ "${insecure}" == "true" ]]; then
         cert_sha="$(get_certificate_sha256 "${HY2_CONF_DIR}/server.crt" 2>/dev/null || true)"
+        cert_public_key_sha="$(get_certificate_public_key_sha256 "${HY2_CONF_DIR}/server.crt" 2>/dev/null || true)"
     fi
 
     clear
@@ -1218,13 +1300,18 @@ show_info() {
         else
             echo -e "  [!] 证书指纹  : ${_red}读取失败，已禁止导出客户端链接${_plain}"
         fi
+        if [[ -n "${cert_public_key_sha}" ]]; then
+            echo -e "  [*] 公钥指纹  : ${_yellow}${cert_public_key_sha}${_plain} (Sing-box)"
+        else
+            echo -e "  [!] 公钥指纹  : ${_red}读取失败，已禁止导出 Sing-box 配置${_plain}"
+        fi
     fi
     echo -e "  [*] 上行带宽  : ${_yellow}${up_mbps}${_plain} Mbps"
     echo -e "  [*] 下行带宽  : ${_yellow}${down_mbps}${_plain} Mbps"
     print_line
 
-    if [[ "${insecure}" == "true" && -z "${cert_sha}" ]]; then
-        err "自签证书指纹读取失败，无法安全生成客户端分享链接。"
+    if [[ "${insecure}" == "true" && ( -z "${cert_sha}" || -z "${cert_public_key_sha}" ) ]]; then
+        err "自签证书校验值读取失败，无法安全生成客户端配置。"
         echo -e "  请通过主菜单 (2) 重新配置自签证书后再导出。"
         wait_return
         return 1
@@ -1248,8 +1335,12 @@ show_info() {
     echo -e "${hy2_url}"
     print_line
 
-    echo -e "${_green}[JSON] Sing-box (Android/iOS) 专属 Outbound 模块:${_plain}"
-    render_singbox_outbound_snippet "${json_ip}" "${port}" "${up_mbps}" "${down_mbps}" "${json_password}" "${json_sni}" "${insecure}"
+    echo -e "${_green}[JSON] Sing-box 1.13+ (Android/iOS) 专属 Outbound 模块:${_plain}"
+    if ! render_singbox_outbound_snippet "${json_ip}" "${port}" "${up_mbps}" "${down_mbps}" "${json_password}" "${json_sni}" "${insecure}" "${cert_public_key_sha}"; then
+        err "生成 Sing-box Outbound 失败，请重新配置节点。"
+        wait_return
+        return 1
+    fi
     print_line
     echo -e "${_green}[YAML] v2rayN / nekoray 自定义配置片段:${_plain}"
     render_v2rayn_yaml_snippet "${ip}" "${port}" "${password}" "${up_mbps}" "${down_mbps}" "${sni}" "${insecure}" "${cert_sha}"
@@ -1293,16 +1384,27 @@ show_singbox_template() {
         return
     fi
 
-    local json_ip json_password json_sni
+    local json_ip json_password json_sni cert_public_key_sha=""
+    if [[ "${insecure}" == "true" ]]; then
+        cert_public_key_sha="$(get_certificate_public_key_sha256 "${HY2_CONF_DIR}/server.crt" 2>/dev/null || true)"
+        if [[ -z "${cert_public_key_sha}" ]]; then
+            err "自签证书公钥指纹读取失败，无法安全生成 Sing-box 配置。"
+            echo -e "  请通过主菜单 (2) 重新配置自签证书后再导出。"
+            wait_return
+            return 1
+        fi
+    fi
     json_ip="$(json_escape "${ip}")"
     json_password="$(json_escape "${password}")"
     json_sni="$(json_escape "${sni}")"
 
     clear
     print_line
-    echo -e "     ${_green}--- Sing-box 完整模板 (Android/iOS / 1.12+) ---${_plain}"
+    echo -e "     ${_green}--- Sing-box 完整模板 (Android/iOS / 1.13+) ---${_plain}"
     print_line
-    render_singbox_full_template "${json_ip}" "${port}" "${up_mbps}" "${down_mbps}" "${json_password}" "${json_sni}" "${insecure}"
+    if ! render_singbox_full_template "${json_ip}" "${port}" "${up_mbps}" "${down_mbps}" "${json_password}" "${json_sni}" "${insecure}" "${cert_public_key_sha}"; then
+        err "生成 Sing-box 完整模板失败，请重新配置节点。"
+    fi
     print_line
     wait_return
 }
@@ -1312,7 +1414,7 @@ show_diagnostics() {
     local warn_count=0
     local fail_count=0
     local line_status
-    local now_ts diag_file summary_plain
+    local now_ts diag_file summary_plain core_version
     local -a diag_conclusions=()
     local -a diag_suggestions=()
     local -a diag_commands=()
@@ -1376,7 +1478,18 @@ show_diagnostics() {
     fi
 
     if ensure_hy2_core_installed; then
-        print_result "OK" "已检测到 Hysteria2 内核。"
+        core_version="$(get_hy2_core_version 2>/dev/null || true)"
+        if [[ -z "${core_version}" ]]; then
+            print_result "WARN" "已检测到 Hysteria2 内核，但无法读取版本。"
+        elif version_at_least "${core_version}" "${RECOMMENDED_HY2_VERSION}"; then
+            print_result "OK" "Hysteria2 内核版本: ${core_version}。"
+        else
+            print_result "WARN" "Hysteria2 内核版本 ${core_version} 低于建议版本 v${RECOMMENDED_HY2_VERSION}。"
+            add_diag_item \
+                "Hysteria2 内核版本较旧。" \
+                "建议更新，以获得移动端快速重连和小 MTU 稳定性修复。" \
+                "菜单 (1) 一键安装/更新 Hysteria2 内核"
+        fi
     else
         print_result "FAIL" "未检测到 Hysteria2 内核。请先执行菜单 (1)。"
         add_diag_item \
@@ -1728,8 +1841,7 @@ main_menu() {
         local status="${_red}未运行${_plain}"
         local core_version="未安装"
         if command -v hysteria &> /dev/null; then
-            # 精准抓取版本号，过滤 ASCII 图案
-            core_version=$(hysteria version | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' | head -n 1)
+            core_version="$(get_hy2_core_version 2>/dev/null || true)"
             [[ -z "$core_version" ]] && core_version="未知版本"
 
             if systemctl is-active --quiet "${HY2_SERVICE}"; then

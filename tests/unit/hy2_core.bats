@@ -48,6 +48,20 @@ teardown() {
   [ "${status}" -ne 0 ]
 }
 
+@test "version comparison should handle release boundaries" {
+  run version_at_least "v2.12.1" "2.12.1"
+  [ "${status}" -eq 0 ]
+
+  run version_at_least "2.13.0" "2.12.1"
+  [ "${status}" -eq 0 ]
+
+  run version_at_least "2.12.0" "2.12.1"
+  [ "${status}" -ne 0 ]
+
+  run version_at_least "invalid" "2.12.1"
+  [ "${status}" -ne 0 ]
+}
+
 @test "config and meta writers should preserve values correctly" {
   write_self_signed_config "443" "pa'ss" "https://example.com"
   [ "$?" -eq 0 ]
@@ -156,7 +170,8 @@ EOF
 }
 
 @test "sing-box full template should use modern rule-set format" {
-  rendered="$(render_singbox_full_template "8.8.8.8" "45612" "20" "100" "abc123" "bing.com" "true")"
+  public_key_sha="47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU="
+  rendered="$(render_singbox_full_template "8.8.8.8" "45612" "20" "100" "abc123" "bing.com" "true" "${public_key_sha}")"
   [[ "${rendered}" == *'"rule_set": "geosite-cn"'* ]]
   [[ "${rendered}" == *'"action": "hijack-dns"'* ]]
   [[ "${rendered}" == *'"address": ['* ]]
@@ -164,11 +179,37 @@ EOF
   [[ "${rendered}" == *'"detour": "proxy"'* ]]
   [[ "${rendered}" == *'"default_domain_resolver": "cf"'* ]]
   [[ "${rendered}" == *'"download_detour": "proxy"'* ]]
+  [[ "${rendered}" == *'"certificate_public_key_sha256": ["'"${public_key_sha}"'"]'* ]]
   [[ "${rendered}" != *'"geosite":'* ]]
   [[ "${rendered}" != *'"geoip":'* ]]
   [[ "${rendered}" != *'"inet4_address"'* ]]
   [[ "${rendered}" != *'"type": "dns"'* ]]
   [[ "${rendered}" != *'"detour": "direct"'* ]]
+}
+
+@test "self-signed sing-box output should require a public key pin" {
+  run render_singbox_outbound_snippet "8.8.8.8" "443" "20" "100" "abc123" "bing.com" "true"
+  [ "${status}" -ne 0 ]
+
+  run render_singbox_full_template "8.8.8.8" "443" "20" "100" "abc123" "bing.com" "true" "invalid"
+  [ "${status}" -ne 0 ]
+
+  run render_singbox_outbound_snippet "8.8.8.8" "443" "20" "100" "abc123" "example.com" "false"
+  [ "${status}" -eq 0 ]
+  [[ "${output}" != *'certificate_public_key_sha256'* ]]
+}
+
+@test "certificate public key hash should be valid base64 SHA-256" {
+  command -v openssl >/dev/null 2>&1 || skip "openssl is not installed"
+  if [[ "${OSTYPE:-}" == msys* ]]; then
+    export MSYS2_ARG_CONV_EXCL="/CN="
+  fi
+  generate_self_signed_certificate "bing.com"
+  [ "$?" -eq 0 ]
+
+  run get_certificate_public_key_sha256 "${HY2_CONF_DIR}/server.crt"
+  [ "${status}" -eq 0 ]
+  [[ "${output}" =~ ^[A-Za-z0-9+/]{43}=$ ]]
 }
 
 @test "v2rayN insecure notice should warn self-signed users" {
@@ -179,6 +220,8 @@ EOF
   [[ "${output}" == *"pinSHA256"* ]]
   [[ "${output}" == *"pcs"* ]]
   [[ "${output}" == *"Xray-core >= 26.2.6"* ]]
+  [[ "${output}" == *"v2rayN >= 7.24.4"* ]]
+  [[ "${output}" == *"Sing-box >= 1.13.0"* ]]
   [[ "${output}" == *"pinnedPeerCertSha256"* ]]
   [[ "${output}" == *"已移除 allowInsecure"* ]]
   [[ "${output}" == *"重新导入节点"* ]]
