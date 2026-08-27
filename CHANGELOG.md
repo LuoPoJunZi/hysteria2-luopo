@@ -1,5 +1,11 @@
 # Changelog
 
+## v26.8.27 - 2026-08-27
+
+- Hysteria2 内核诊断推荐版本更新到 v2.12.2，补充 IPv6 mimic 修复与 Stateless Reset 兼容开关说明，默认保留移动端快速重连能力。
+- v2rayN 安全与 Hysteria2 兼容建议更新到 7.24.8+，继续保留 `pinSHA256`、`pcs` 与 Sing-box 公钥固定方案。
+- GitHub Actions 依赖固定到审核过的完整提交 SHA，降低可移动标签带来的发布供应链风险。
+
 ## v26.8.11 - 2026-08-11
 
 - Sing-box 自签配置新增 `certificate_public_key_sha256` 公钥固定，校验值缺失时拒绝导出，最低兼容版本调整为 Sing-box 1.13.0。

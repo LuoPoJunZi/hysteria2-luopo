@@ -7,7 +7,7 @@
 # 交互式主面板不启用全局 errexit，各外部命令在对应流程中显式处理失败与回滚。
 
 # --- 1. 全局变量与颜色输出 ---
-sh_ver="v26.8.11"
+sh_ver="v26.8.27"
 
 _red="\033[0;31m"
 _green="\033[0;32m"
@@ -26,7 +26,7 @@ PANEL_UPDATE_URL="https://raw.githubusercontent.com/LuoPoJunZi/hysteria2-luopo/m
 PANEL_TARGET_BIN="/usr/local/bin/hy2"
 PANEL_BACKUP_PREFIX="/usr/local/bin/hy2.bak"
 HY2_INSTALL_URL="https://get.hy2.sh/"
-RECOMMENDED_HY2_VERSION="2.12.1"
+RECOMMENDED_HY2_VERSION="2.12.2"
 DEFAULT_PORT=443
 DEFAULT_MASQUERADE_URL="https://bing.com"
 DEFAULT_SELF_SNI="bing.com"
@@ -673,7 +673,7 @@ print_v2rayn_insecure_notice() {
     echo -e "  原生 Hysteria2 使用 insecure=1 与 pinSHA256 验证自签证书。"
     echo -e "  v2rayN / Xray 使用 pcs 映射 pinnedPeerCertSha256。"
     echo -e "  使用 Xray 时请确保：v2rayN >= 7.17.1，Xray-core >= 26.2.6。"
-    echo -e "  建议使用 v2rayN >= 7.24.4，以包含下载器安全修复。"
+    echo -e "  建议使用 v2rayN >= 7.24.8，以包含下载器安全与 HY2 兼容修复。"
     echo -e "  Sing-box 自签配置使用公钥固定，请使用 Sing-box >= 1.13.0。"
     echo -e "  分享链接已移除 allowInsecure，不再依赖已废弃的跳过验证字段。"
     echo -e "  重新生成自签证书后指纹会变化，客户端必须重新导入节点。"
@@ -1487,7 +1487,7 @@ show_diagnostics() {
             print_result "WARN" "Hysteria2 内核版本 ${core_version} 低于建议版本 v${RECOMMENDED_HY2_VERSION}。"
             add_diag_item \
                 "Hysteria2 内核版本较旧。" \
-                "建议更新，以获得移动端快速重连和小 MTU 稳定性修复。" \
+                "建议更新，以获得移动端快速重连、IPv6 mimic 与小 MTU 稳定性修复。" \
                 "菜单 (1) 一键安装/更新 Hysteria2 内核"
         fi
     else

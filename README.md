@@ -105,9 +105,9 @@ hy2
 
 ```text
 =====================================================
-  Hysteria2-LuoPo 管理面板 v26.8.11 |  快捷启动: hy2
+  Hysteria2-LuoPo 管理面板 v26.8.27 |  快捷启动: hy2
 =====================================================
-  内核版本: v2.12.1    服务状态: 运行中
+  内核版本: v2.12.2    服务状态: 运行中
 -----------------------------------------------------
   节点核心管理
     (1)  一键安装/更新 Hysteria2 内核
@@ -156,7 +156,7 @@ hy2
 适合：没有域名，想快速用 IP 连通。  
 要求：原生 Hysteria2 客户端必须开启 `insecure=true`，并使用脚本导出的 `pinSHA256` 固定证书；Sing-box 1.13+ 使用 `certificate_public_key_sha256` 固定证书公钥。
 
-注意：自签节点使用 Xray 时要求 v2rayN `7.17.1+`、Xray-core `26.2.6+`，并建议使用包含下载器安全修复的 v2rayN `7.24.4+`。分享链接同时包含 Hysteria2 官方的 `pinSHA256` 和 Xray 分享规范的 `pcs`；v2rayN 会把 `pcs` 映射为 `pinnedPeerCertSha256`，链接不再输出已移除的 `allowInsecure`。Sing-box 配置则使用独立的公钥 SHA-256 固定字段。任一自签证书校验值读取失败时，脚本都会拒绝生成相应客户端配置，请通过菜单 `2` 重新配置证书。重新生成自签证书后必须重新导入节点。长期使用仍建议优先采用 CA 域名证书模式。
+注意：自签节点使用 Xray 时要求 v2rayN `7.17.1+`、Xray-core `26.2.6+`，并建议使用包含下载器安全与 HY2 兼容修复的 v2rayN `7.24.8+`。分享链接同时包含 Hysteria2 官方的 `pinSHA256` 和 Xray 分享规范的 `pcs`；v2rayN 会把 `pcs` 映射为 `pinnedPeerCertSha256`，链接不再输出已移除的 `allowInsecure`。Sing-box 配置则使用独立的公钥 SHA-256 固定字段。任一自签证书校验值读取失败时，脚本都会拒绝生成相应客户端配置，请通过菜单 `2` 重新配置证书。重新生成自签证书后必须重新导入节点。长期使用仍建议优先采用 CA 域名证书模式。
 
 自签模式支持 SNI 预设：
 
@@ -177,7 +177,7 @@ hy2
 - 或复制 YAML 片段做手动配置
 - 自签模式按 Hysteria2 官方 URI 规范使用 `insecure=1` 和 `pinSHA256`；CA 证书模式省略 `insecure`
 - 自签链接额外包含 `pcs`，供 v2rayN/Xray 映射为 `pinnedPeerCertSha256`，不再输出 `allowInsecure`
-- Xray 兼容要求：v2rayN `7.17.1+`、Xray-core `26.2.6+`。安全方面建议使用 v2rayN `7.24.4+`；旧版 Xray 不保证支持自签证书固定。
+- Xray 兼容要求：v2rayN `7.17.1+`、Xray-core `26.2.6+`。安全与 HY2 兼容方面建议使用 v2rayN `7.24.8+`；旧版 Xray 不保证支持自签证书固定。
 
 ### 7.2 Android / iOS（Sing-box）
 
@@ -206,7 +206,9 @@ hy2
 3. 菜单 `5` 查看实时日志
 
 菜单 `9` 会在结果末尾给出结构化排障建议：`结论 + 建议 + 命令`，可直接按命令执行。
-诊断还会检查 Hysteria2 内核版本；低于 `v2.12.1` 时会提示通过菜单 `1` 更新，以获得移动端快速重连和小 MTU 稳定性修复。
+诊断还会检查 Hysteria2 内核版本；低于 `v2.12.2` 时会提示通过菜单 `1` 更新，以获得移动端快速重连、IPv6 mimic 和小 MTU 稳定性修复。
+
+Hysteria2 2.12.2 增加了 `quic.disableStatelessReset` 作为兼容性开关。面板不会默认写入该选项，保持 Stateless Reset 启用，以保留移动端休眠后的快速重连能力；只有确认特定网络环境与 Stateless Reset 冲突时，才建议手动设为 `true` 进行排障。
 
 ### 8.2 常见错误：`config.yaml: permission denied`
 

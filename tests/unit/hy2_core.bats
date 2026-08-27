@@ -49,16 +49,16 @@ teardown() {
 }
 
 @test "version comparison should handle release boundaries" {
-  run version_at_least "v2.12.1" "2.12.1"
+  run version_at_least "v2.12.2" "${RECOMMENDED_HY2_VERSION}"
   [ "${status}" -eq 0 ]
 
-  run version_at_least "2.13.0" "2.12.1"
+  run version_at_least "2.13.0" "${RECOMMENDED_HY2_VERSION}"
   [ "${status}" -eq 0 ]
 
-  run version_at_least "2.12.0" "2.12.1"
+  run version_at_least "2.12.1" "${RECOMMENDED_HY2_VERSION}"
   [ "${status}" -ne 0 ]
 
-  run version_at_least "invalid" "2.12.1"
+  run version_at_least "invalid" "${RECOMMENDED_HY2_VERSION}"
   [ "${status}" -ne 0 ]
 }
 
@@ -220,7 +220,7 @@ EOF
   [[ "${output}" == *"pinSHA256"* ]]
   [[ "${output}" == *"pcs"* ]]
   [[ "${output}" == *"Xray-core >= 26.2.6"* ]]
-  [[ "${output}" == *"v2rayN >= 7.24.4"* ]]
+  [[ "${output}" == *"v2rayN >= 7.24.8"* ]]
   [[ "${output}" == *"Sing-box >= 1.13.0"* ]]
   [[ "${output}" == *"pinnedPeerCertSha256"* ]]
   [[ "${output}" == *"已移除 allowInsecure"* ]]
