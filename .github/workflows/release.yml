@@ -7,6 +7,7 @@ on:
     paths:
       - 'hy2.sh'
       - 'install.sh'
+      - 'src/**'
       - 'README.md'
       - 'CHANGELOG.md'
       - 'LICENSE'
@@ -33,11 +34,11 @@ jobs:
       - name: Extract Version
         id: get_version
         run: |
-          # 从 hy2.sh 中提取 sh_ver 变量的值
-          VERSION=$(sed -n 's/^sh_ver="\(v[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\)".*/\1/p' hy2.sh | head -n 1 || echo "")
+          # 从模块化源码入口中提取 sh_ver 变量的值
+          VERSION=$(sed -n 's/^sh_ver="\(v[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\)".*/\1/p' src/bootstrap.sh | head -n 1 || echo "")
 
           if [ -z "$VERSION" ]; then
-            echo "❌ 致命错误：无法在 hy2.sh 中找到 sh_ver 变量！请确保代码中有 sh_ver=\"v1.0.0\" 这样的定义。"
+            echo "❌ 致命错误：无法在 src/bootstrap.sh 中找到 sh_ver 变量！"
             exit 1
           fi
 
@@ -53,13 +54,16 @@ jobs:
       - name: Install verification dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y shellcheck bats
+          sudo apt-get install -y shellcheck bats python3
 
       - name: Make verify scripts executable
-        run: chmod +x scripts/verify.sh scripts/check-style.sh scripts/check-menu-sync.sh scripts/check-version-sync.sh scripts/check-release-package.sh scripts/smoke-e2e.sh tests/e2e/config-flow.sh
+        run: chmod +x scripts/verify.sh scripts/build-panel.sh scripts/check-style.sh scripts/check-menu-sync.sh scripts/check-version-sync.sh scripts/check-release-package.sh scripts/smoke-e2e.sh tests/e2e/config-flow.sh tests/e2e/client-render.sh
 
       - name: Run bash syntax checks
         run: ./scripts/verify.sh syntax
+
+      - name: Check generated panel
+        run: ./scripts/verify.sh generated-panel
 
       - name: Check repository style
         run: ./scripts/verify.sh style
@@ -84,6 +88,9 @@ jobs:
 
       - name: Run config flow replay
         run: ./scripts/verify.sh config-flow
+
+      - name: Run client render flow
+        run: ./scripts/verify.sh client-render
 
       - name: Check if Release is Needed
         id: check_release

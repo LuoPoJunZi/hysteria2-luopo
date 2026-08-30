@@ -79,6 +79,43 @@ teardown() {
   [ "${insecure}" = "true" ]
 }
 
+@test "staged config collectors should normalize validated values" {
+  reset_hy2_config_draft
+  collect_hy2_connection_settings <<< $'00443\nfixed-password\nhttps://example.com\n25\n125\n'
+  [ "$?" -eq 0 ]
+  [ "${HY2_DRAFT_PORT}" = "443" ]
+  [ "${HY2_DRAFT_PASSWORD}" = "fixed-password" ]
+  [ "${HY2_DRAFT_MASQUERADE_URL}" = "https://example.com" ]
+  [ "${HY2_DRAFT_UP_MBPS}" = "25" ]
+  [ "${HY2_DRAFT_DOWN_MBPS}" = "125" ]
+
+  collect_hy2_certificate_settings <<< $'1\nexample.com\n\n'
+  [ "$?" -eq 0 ]
+  [ "${HY2_DRAFT_CERT_TYPE}" = "1" ]
+  [ "${HY2_DRAFT_DOMAIN}" = "example.com" ]
+  [ "${HY2_DRAFT_EMAIL}" = "admin@example.com" ]
+  [ "${HY2_DRAFT_SNI}" = "example.com" ]
+  [ "${HY2_DRAFT_INSECURE}" = "false" ]
+}
+
+@test "diagnostic context should count results and deduplicate suggestions" {
+  diagnostic_reset_context
+  diagnostic_print_result "OK" "context-ok"
+  diagnostic_print_result "WARN" "context-warn"
+  diagnostic_add_item "same conclusion" "first suggestion" "first command"
+  diagnostic_add_item "same conclusion" "second suggestion" "second command"
+
+  [ "${DIAG_OK_COUNT}" -eq 1 ]
+  [ "${DIAG_WARN_COUNT}" -eq 1 ]
+  [ "${DIAG_FAIL_COUNT}" -eq 0 ]
+  [ "${#DIAG_CONCLUSIONS[@]}" -eq 1 ]
+  [ "${DIAG_SUGGESTIONS[0]}" = "first suggestion" ]
+
+  diagnostic_render_summary
+  grep -Fq "诊断结果: 1 OK / 1 WARN / 0 FAIL" "${HY2_DIAG_LATEST}"
+  grep -Fq "[建议] first suggestion" "${HY2_DIAG_LATEST}"
+}
+
 @test "restart_service_with_rollback should restore backup after restart failure" {
   systemctl() {
     if [ "${1:-}" = "restart" ]; then
@@ -157,6 +194,25 @@ EOF
   [ ! -e "${HY2_CONF_DIR}/server.key" ]
 }
 
+@test "manual self-signed backup validation should require certificate files" {
+  backup_dir="${HY2_BACKUP_DIR}/manual-test"
+  mkdir -p "${backup_dir}"
+  cat > "${backup_dir}/config.yaml" <<'EOF'
+listen: :443
+tls:
+  cert: /etc/hysteria/server.crt
+  key: /etc/hysteria/server.key
+EOF
+
+  run validate_manual_backup_dir "${backup_dir}"
+  [ "${status}" -ne 0 ]
+
+  printf "backup-cert" > "${backup_dir}/server.crt"
+  printf "backup-key" > "${backup_dir}/server.key"
+  run validate_manual_backup_dir "${backup_dir}"
+  [ "${status}" -eq 0 ]
+}
+
 @test "show_service_failure_hint should classify permission denied logs" {
   journalctl() {
     cat <<'EOF'
@@ -197,6 +253,30 @@ EOF
   run render_singbox_outbound_snippet "8.8.8.8" "443" "20" "100" "abc123" "example.com" "false"
   [ "${status}" -eq 0 ]
   [[ "${output}" != *'certificate_public_key_sha256'* ]]
+}
+
+@test "sing-box public key field should preserve requested indentation" {
+  public_key_sha="47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU="
+  run render_singbox_public_key_field "true" "${public_key_sha}" "    "
+  [ "${status}" -eq 0 ]
+  [ "${output}" = $',\n    "certificate_public_key_sha256": ["'"${public_key_sha}"'"]' ]
+
+  run render_singbox_public_key_field "invalid" "${public_key_sha}" "    "
+  [ "${status}" -ne 0 ]
+}
+
+@test "client export safety gate should require both self-signed pins" {
+  wait_return() { :; }
+  insecure="true"
+  cert_sha="0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+  public_key_sha="47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU="
+
+  run ensure_client_export_material "" "${public_key_sha}"
+  [ "${status}" -ne 0 ]
+  run ensure_client_export_material "${cert_sha}" ""
+  [ "${status}" -ne 0 ]
+  run ensure_client_export_material "${cert_sha}" "${public_key_sha}"
+  [ "${status}" -eq 0 ]
 }
 
 @test "certificate public key hash should be valid base64 SHA-256" {

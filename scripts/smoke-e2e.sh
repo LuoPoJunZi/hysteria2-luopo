@@ -118,6 +118,35 @@ assert_eq "${PICKED_SNI}" "custom.example.com" "manual SNI input mismatch"
 pick_self_signed_sni <<< "9"
 assert_eq "${PICKED_SNI}" "bing.com" "invalid SNI fallback mismatch"
 
+echo "[INFO] Running staged config input checks..."
+reset_hy2_config_draft
+collect_hy2_connection_settings <<< $'00443\nfixed-password\nhttps://example.com\n25\n125\n'
+assert_eq "${HY2_DRAFT_PORT}" "443" "draft port normalization mismatch"
+assert_eq "${HY2_DRAFT_PASSWORD}" "fixed-password" "draft password mismatch"
+assert_eq "${HY2_DRAFT_MASQUERADE_URL}" "https://example.com" "draft masquerade URL mismatch"
+assert_eq "${HY2_DRAFT_UP_MBPS}" "25" "draft upload bandwidth mismatch"
+assert_eq "${HY2_DRAFT_DOWN_MBPS}" "125" "draft download bandwidth mismatch"
+
+collect_hy2_certificate_settings <<< $'1\nexample.com\n\n'
+assert_eq "${HY2_DRAFT_CERT_TYPE}" "1" "draft certificate mode mismatch"
+assert_eq "${HY2_DRAFT_DOMAIN}" "example.com" "draft certificate domain mismatch"
+assert_eq "${HY2_DRAFT_EMAIL}" "admin@example.com" "draft default email mismatch"
+assert_eq "${HY2_DRAFT_SNI}" "example.com" "draft CA SNI mismatch"
+assert_eq "${HY2_DRAFT_INSECURE}" "false" "draft CA security mode mismatch"
+
+echo "[INFO] Running diagnostic context checks..."
+diagnostic_reset_context
+diagnostic_print_result "OK" "context-ok"
+diagnostic_print_result "WARN" "context-warn"
+diagnostic_add_item "same conclusion" "first suggestion" "first command"
+diagnostic_add_item "same conclusion" "second suggestion" "second command"
+assert_eq "${DIAG_OK_COUNT}" "1" "diagnostic OK count mismatch"
+assert_eq "${DIAG_WARN_COUNT}" "1" "diagnostic WARN count mismatch"
+assert_eq "${#DIAG_CONCLUSIONS[@]}" "1" "diagnostic suggestion deduplication mismatch"
+diagnostic_render_summary
+grep -Fq "诊断结果: 1 OK / 1 WARN / 0 FAIL" "${HY2_DIAG_LATEST}" || fail "diagnostic summary was not exported"
+grep -Fq "[建议] first suggestion" "${HY2_DIAG_LATEST}" || fail "deduplicated diagnostic suggestion was not exported"
+
 echo "[INFO] Running share snippet checks..."
 cert_sha="0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 share_url="$(render_hysteria2_share_url "8.8.8.8" "45612" "pa ss" "bing.com" "true" "${cert_sha}")"
@@ -231,6 +260,22 @@ restart_service_with_rollback || fail "restart_service_with_rollback should pass
 assert_eq "${__mock_systemctl_calls}" "1" "success restart call count mismatch"
 
 echo "[INFO] Running manual backup/restore checks..."
+malformed_backup="${HY2_BACKUP_DIR}/manual-malformed"
+mkdir -p "${malformed_backup}"
+cat > "${malformed_backup}/config.yaml" <<'EOF'
+listen: :443
+tls:
+  cert: /etc/hysteria/server.crt
+  key: /etc/hysteria/server.key
+EOF
+if validate_manual_backup_dir "${malformed_backup}" >/dev/null 2>&1; then
+    fail "self-signed backup without certificate files should be rejected"
+fi
+printf "backup-cert" > "${malformed_backup}/server.crt"
+printf "backup-key" > "${malformed_backup}/server.key"
+validate_manual_backup_dir "${malformed_backup}" || fail "complete self-signed backup should pass validation"
+rm -rf "${malformed_backup}"
+
 cat > "${HY2_CONF_FILE}" <<'EOF'
 listen: :443
 acme:

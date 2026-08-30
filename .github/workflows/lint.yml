@@ -8,6 +8,7 @@ on:
     paths:
       - 'hy2.sh'
       - 'install.sh'
+      - 'src/**'
       - 'README.md'
       - 'CHANGELOG.md'
       - 'scripts/**'
@@ -25,13 +26,16 @@ jobs:
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y shellcheck bats
+        run: sudo apt-get update && sudo apt-get install -y shellcheck bats python3
 
       - name: Make verify script executable
-        run: chmod +x scripts/verify.sh scripts/check-style.sh scripts/check-menu-sync.sh scripts/check-version-sync.sh scripts/check-release-package.sh scripts/smoke-e2e.sh tests/e2e/config-flow.sh
+        run: chmod +x scripts/verify.sh scripts/build-panel.sh scripts/check-style.sh scripts/check-menu-sync.sh scripts/check-version-sync.sh scripts/check-release-package.sh scripts/smoke-e2e.sh tests/e2e/config-flow.sh tests/e2e/client-render.sh
 
       - name: Run bash syntax checks
         run: ./scripts/verify.sh syntax
+
+      - name: Check generated panel
+        run: ./scripts/verify.sh generated-panel
 
       - name: Check repository style
         run: ./scripts/verify.sh style
@@ -56,22 +60,28 @@ jobs:
 
       - name: Run config flow replay
         run: ./scripts/verify.sh config-flow
+
+      - name: Run client render flow
+        run: ./scripts/verify.sh client-render
 
   verify-debian:
     runs-on: ubuntu-latest
     container: debian:12
     steps:
       - name: Install dependencies
-        run: apt-get update && apt-get install -y bash git shellcheck bats grep sed gawk coreutils
+        run: apt-get update && apt-get install -y bash git shellcheck bats grep sed gawk coreutils python3
 
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       - name: Make verify script executable
-        run: chmod +x scripts/verify.sh scripts/check-style.sh scripts/check-menu-sync.sh scripts/check-version-sync.sh scripts/check-release-package.sh scripts/smoke-e2e.sh tests/e2e/config-flow.sh
+        run: chmod +x scripts/verify.sh scripts/build-panel.sh scripts/check-style.sh scripts/check-menu-sync.sh scripts/check-version-sync.sh scripts/check-release-package.sh scripts/smoke-e2e.sh tests/e2e/config-flow.sh tests/e2e/client-render.sh
 
       - name: Run bash syntax checks
         run: ./scripts/verify.sh syntax
+
+      - name: Check generated panel
+        run: ./scripts/verify.sh generated-panel
 
       - name: Check repository style
         run: ./scripts/verify.sh style
@@ -96,3 +106,6 @@ jobs:
 
       - name: Run config flow replay
         run: ./scripts/verify.sh config-flow
+
+      - name: Run client render flow
+        run: ./scripts/verify.sh client-render
