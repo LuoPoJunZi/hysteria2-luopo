@@ -24,8 +24,15 @@ run_syntax_checks() {
     echo "[INFO] Running bash syntax checks..."
     bash -n hy2.sh
     bash -n install.sh
+    bash -n src/*.sh src/*/*.sh
     bash -n scripts/*.sh
     bash -n tests/e2e/*.sh
+}
+
+run_generated_panel_check() {
+    require_cmds bash cmp
+    echo "[INFO] Checking generated panel consistency..."
+    bash scripts/build-panel.sh --check
 }
 
 run_style_checks() {
@@ -37,7 +44,7 @@ run_style_checks() {
 run_shellcheck() {
     require_cmds shellcheck
     echo "[INFO] Running shellcheck..."
-    shellcheck -S error -x hy2.sh install.sh scripts/*.sh tests/e2e/*.sh
+    shellcheck -S error -x hy2.sh install.sh src/*.sh src/*/*.sh scripts/*.sh tests/e2e/*.sh
 }
 
 run_menu_sync_check() {
@@ -76,8 +83,15 @@ run_config_flow_replay() {
     bash tests/e2e/config-flow.sh
 }
 
+run_client_render_replay() {
+    require_cmds bash "${PYTHON_BIN:-python3}"
+    echo "[INFO] Running client render flow tests..."
+    bash tests/e2e/client-render.sh
+}
+
 run_all() {
     run_syntax_checks
+    run_generated_panel_check
     run_style_checks
     run_shellcheck
     run_menu_sync_check
@@ -86,10 +100,12 @@ run_all() {
     run_smoke_e2e_checks
     run_bats_tests
     run_config_flow_replay
+    run_client_render_replay
 }
 
 case "${1:-all}" in
     syntax) run_syntax_checks ;;
+    generated-panel) run_generated_panel_check ;;
     style) run_style_checks ;;
     shellcheck) run_shellcheck ;;
     menu-sync) run_menu_sync_check ;;
@@ -98,10 +114,11 @@ case "${1:-all}" in
     smoke-e2e) run_smoke_e2e_checks ;;
     bats) run_bats_tests ;;
     config-flow) run_config_flow_replay ;;
+    client-render) run_client_render_replay ;;
     all) run_all ;;
     *)
         echo "[ERROR] Unknown verify target: $1"
-        echo "Usage: $0 [syntax|style|shellcheck|menu-sync|version-sync|release-package|smoke-e2e|bats|config-flow|all]"
+        echo "Usage: $0 [syntax|generated-panel|style|shellcheck|menu-sync|version-sync|release-package|smoke-e2e|bats|config-flow|client-render|all]"
         exit 1
         ;;
 esac

@@ -9,9 +9,14 @@ fail() {
     exit 1
 }
 
-version="$(grep -oE 'sh_ver="v[0-9]+\.[0-9]+\.[0-9]+"' hy2.sh | head -n 1 | sed -E 's/.*"(v[0-9]+\.[0-9]+\.[0-9]+)".*/\1/')"
+version="$(grep -oE 'sh_ver="v[0-9]+\.[0-9]+\.[0-9]+"' src/bootstrap.sh | head -n 1 | sed -E 's/.*"(v[0-9]+\.[0-9]+\.[0-9]+)".*/\1/')"
 if [[ -z "${version}" ]]; then
-    fail "Cannot extract sh_ver from hy2.sh"
+    fail "Cannot extract sh_ver from src/bootstrap.sh"
+fi
+
+generated_version="$(grep -oE 'sh_ver="v[0-9]+\.[0-9]+\.[0-9]+"' hy2.sh | head -n 1 | sed -E 's/.*"(v[0-9]+\.[0-9]+\.[0-9]+)".*/\1/')"
+if [[ "${generated_version}" != "${version}" ]]; then
+    fail "Generated hy2.sh version is out of sync (${generated_version:-missing} != ${version})"
 fi
 
 readme_marker="Hysteria2-LuoPo 管理面板 ${version}"

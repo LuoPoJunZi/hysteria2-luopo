@@ -1,0 +1,52 @@
+# shellcheck shell=bash
+# 职责: Sing-box 完整配置模板组合
+
+render_singbox_inbounds_section() {
+    cat << 'EOF'
+  "inbounds": [
+    {
+      "type": "tun",
+      "tag": "tun-in",
+      "address": [
+        "172.19.0.1/30"
+      ],
+      "auto_route": true,
+      "strict_route": false
+    }
+  ],
+EOF
+}
+
+render_singbox_experimental_section() {
+    cat << 'EOF'
+  "experimental": {
+    "cache_file": {
+      "enabled": true
+    }
+  }
+EOF
+}
+
+render_singbox_full_template() {
+    local json_ip="$1"
+    local port="$2"
+    local up_mbps="$3"
+    local down_mbps="$4"
+    local json_password="$5"
+    local json_sni="$6"
+    local insecure="$7"
+    local public_key_sha="${8:-}"
+    local public_key_field
+
+    public_key_field="$(render_singbox_public_key_field "${insecure}" "${public_key_sha}" "        ")" || return 1
+
+    cat << EOF
+{
+$(render_singbox_dns_section)
+$(render_singbox_inbounds_section)
+$(render_singbox_outbounds_section "${json_ip}" "${port}" "${up_mbps}" "${down_mbps}" "${json_password}" "${json_sni}" "${insecure}" "${public_key_field}")
+$(render_singbox_route_section)
+$(render_singbox_experimental_section)
+}
+EOF
+}

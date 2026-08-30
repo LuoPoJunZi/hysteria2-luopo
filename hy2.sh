@@ -1,4 +1,5 @@
 #!/bin/bash
+# 此文件同时作为生成版 hy2.sh 的开头；业务代码请修改 src/ 下对应模块。
 # ==========================================
 # 项目: Hysteria2-LuoPo 核心管理面板
 # 描述: 专为恶劣网络环境打造的极简 Hysteria2 运维脚本
@@ -7,7 +8,7 @@
 # 交互式主面板不启用全局 errexit，各外部命令在对应流程中显式处理失败与回滚。
 
 # --- 1. 全局变量与颜色输出 ---
-sh_ver="v26.8.27"
+sh_ver="v26.8.30"
 
 _red="\033[0;31m"
 _green="\033[0;32m"
@@ -35,12 +36,23 @@ DEFAULT_DOWN_MBPS=100
 SELF_SNI_PRESETS=("bing.com" "www.cloudflare.com" "www.apple.com" "www.microsoft.com" "www.amazon.com")
 RUNTIME_FILE_NAMES=("config.yaml" "meta.info" "server.crt" "server.key")
 
+# shellcheck shell=bash
+# 职责: 终端消息与基础界面输出
+
 msg() { echo -e "${_blue}[信息]${_plain} $1"; }
+
 ok() { echo -e "${_green}[成功]${_plain} $1"; }
+
 err() { echo -e "${_red}[错误]${_plain} $1"; }
+
 print_line() { echo -e "${_blue}=====================================================${_plain}"; }
+
 print_sub_line() { echo -e "${_blue}-----------------------------------------------------${_plain}"; }
+
 wait_return() { read -n 1 -s -r -p "按任意键返回主菜单..."; }
+
+# shellcheck shell=bash
+# 职责: 运行环境、依赖和版本判断
 
 require_root() {
     if [[ "${EUID}" -ne 0 ]]; then
@@ -112,6 +124,9 @@ version_at_least() {
     (( 10#${current_patch} >= 10#${minimum_patch} ))
 }
 
+# shellcheck shell=bash
+# 职责: 用户输入格式校验
+
 is_valid_port() {
     local p="$1"
     [[ "${p}" =~ ^[0-9]{1,5}$ ]] && (( 10#${p} >= 1 && 10#${p} <= 65535 ))
@@ -136,6 +151,9 @@ is_valid_email() {
     local e="$1"
     [[ "${e}" =~ ^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$ ]]
 }
+
+# shellcheck shell=bash
+# 职责: YAML、URL、JSON 与主机地址编码
 
 yaml_single_quote() {
     local raw="$1"
@@ -177,102 +195,8 @@ format_host_for_url() {
     printf '%s' "${host}"
 }
 
-normalize_certificate_sha256() {
-    local fingerprint="$1"
-    fingerprint="${fingerprint#*=}"
-    fingerprint="${fingerprint//:/}"
-    fingerprint="${fingerprint//[[:space:]]/}"
-    fingerprint="${fingerprint,,}"
-    [[ "${fingerprint}" =~ ^[0-9a-f]{64}$ ]] || return 1
-    printf '%s' "${fingerprint}"
-}
-
-get_certificate_sha256() {
-    local cert_file="$1"
-    local fingerprint
-    [[ -f "${cert_file}" ]] || return 1
-    fingerprint="$(openssl x509 -in "${cert_file}" -noout -fingerprint -sha256 2>/dev/null)" || return 1
-    normalize_certificate_sha256 "${fingerprint}"
-}
-
-is_valid_certificate_public_key_sha256() {
-    local fingerprint="$1"
-    [[ "${fingerprint}" =~ ^[A-Za-z0-9+/]{43}=$ ]]
-}
-
-get_certificate_public_key_sha256() {
-    local cert_file="$1"
-    local fingerprint
-    [[ -f "${cert_file}" ]] || return 1
-    fingerprint="$(
-        set -o pipefail
-        openssl x509 -in "${cert_file}" -pubkey -noout 2>/dev/null |
-            openssl pkey -pubin -outform der 2>/dev/null |
-            openssl dgst -sha256 -binary 2>/dev/null |
-            openssl enc -base64 -A 2>/dev/null
-    )" || return 1
-    is_valid_certificate_public_key_sha256 "${fingerprint}" || return 1
-    printf '%s' "${fingerprint}"
-}
-
-render_hysteria2_share_url() {
-    local ip="$1"
-    local port="$2"
-    local password="$3"
-    local sni="$4"
-    local insecure="$5"
-    local cert_sha="${6:-}"
-    local query
-
-    case "${insecure}" in
-        true) ;;
-        false) ;;
-        *) return 1 ;;
-    esac
-
-    if [[ -n "${cert_sha}" ]]; then
-        cert_sha="$(normalize_certificate_sha256 "${cert_sha}")" || return 1
-    fi
-    if [[ "${insecure}" == "true" && -z "${cert_sha}" ]]; then
-        return 1
-    fi
-
-    query="sni=$(url_encode "${sni}")"
-    if [[ "${insecure}" == "true" ]]; then
-        query+="&insecure=1"
-    fi
-    if [[ -n "${cert_sha}" ]]; then
-        query+="&pinSHA256=${cert_sha}&pcs=${cert_sha}"
-    fi
-
-    printf 'hysteria2://%s@%s:%s/?%s#Hysteria2-LuoPo' \
-        "$(url_encode "${password}")" \
-        "$(format_host_for_url "${ip}")" \
-        "${port}" \
-        "${query}"
-}
-
-generate_self_signed_certificate() {
-    local sni="$1"
-    local cert_file="${HY2_CONF_DIR}/server.crt"
-    local key_file="${HY2_CONF_DIR}/server.key"
-
-    if openssl req -x509 -nodes -newkey ec \
-        -pkeyopt ec_paramgen_curve:prime256v1 \
-        -keyout "${key_file}" -out "${cert_file}" \
-        -subj "/CN=${sni}" -days 36500 \
-        -addext "subjectAltName=DNS:${sni}" \
-        -addext "basicConstraints=critical,CA:FALSE" \
-        -addext "keyUsage=critical,digitalSignature" \
-        -addext "extendedKeyUsage=serverAuth" >/dev/null 2>&1; then
-        return 0
-    fi
-
-    openssl req -x509 -nodes -newkey ec \
-        -pkeyopt ec_paramgen_curve:prime256v1 \
-        -keyout "${key_file}" -out "${cert_file}" \
-        -subj "/CN=${sni}" -days 36500 >/dev/null 2>&1
-}
+# shellcheck shell=bash
+# 职责: 原子写入与自动配置快照
 
 write_file_atomic() {
     local target="$1"
@@ -347,6 +271,9 @@ restore_runtime_files() {
     return 0
 }
 
+# shellcheck shell=bash
+# 职责: 服务器公网地址发现
+
 fetch_server_ip() {
     local ip
     ip="$(curl -fsS4 --max-time 6 https://api.ipify.org 2>/dev/null || true)"
@@ -358,6 +285,9 @@ fetch_server_ip() {
     fi
     echo "${ip}"
 }
+
+# shellcheck shell=bash
+# 职责: 节点元数据安全读写
 
 read_meta_info() {
     ip=""
@@ -414,50 +344,91 @@ require_meta_info() {
     return 0
 }
 
-write_ca_config() {
-    local port="$1"
-    local domain="$2"
-    local email="$3"
-    local password="$4"
-    local masquerade_url="$5"
+write_meta_info() {
+    local ip="$1"
+    local port="$2"
+    local password="$3"
+    local sni="$4"
+    local insecure="$5"
+    local up_mbps="$6"
+    local down_mbps="$7"
 
-    cat << EOF | write_file_atomic "${HY2_CONF_FILE}"
-listen: :${port}
-acme:
-  domains:
-    - $(yaml_single_quote "${domain}")
-  email: $(yaml_single_quote "${email}")
-auth:
-  type: password
-  password: $(yaml_single_quote "${password}")
-masquerade:
-  type: proxy
-  proxy:
-    url: $(yaml_single_quote "${masquerade_url}")
-    rewriteHost: true
+    cat << EOF | write_file_atomic "${HY2_META_FILE}"
+ip=${ip}
+port=${port}
+password=${password}
+sni=${sni}
+insecure=${insecure}
+up_mbps=${up_mbps}
+down_mbps=${down_mbps}
 EOF
 }
 
-write_self_signed_config() {
-    local port="$1"
-    local password="$2"
-    local masquerade_url="$3"
+# shellcheck shell=bash
+# 职责: 证书生成与校验值计算
 
-    cat << EOF | write_file_atomic "${HY2_CONF_FILE}"
-listen: :${port}
-tls:
-  cert: ${HY2_CONF_DIR}/server.crt
-  key: ${HY2_CONF_DIR}/server.key
-auth:
-  type: password
-  password: $(yaml_single_quote "${password}")
-masquerade:
-  type: proxy
-  proxy:
-    url: $(yaml_single_quote "${masquerade_url}")
-    rewriteHost: true
-EOF
+normalize_certificate_sha256() {
+    local fingerprint="$1"
+    fingerprint="${fingerprint#*=}"
+    fingerprint="${fingerprint//:/}"
+    fingerprint="${fingerprint//[[:space:]]/}"
+    fingerprint="${fingerprint,,}"
+    [[ "${fingerprint}" =~ ^[0-9a-f]{64}$ ]] || return 1
+    printf '%s' "${fingerprint}"
 }
+
+get_certificate_sha256() {
+    local cert_file="$1"
+    local fingerprint
+    [[ -f "${cert_file}" ]] || return 1
+    fingerprint="$(openssl x509 -in "${cert_file}" -noout -fingerprint -sha256 2>/dev/null)" || return 1
+    normalize_certificate_sha256 "${fingerprint}"
+}
+
+is_valid_certificate_public_key_sha256() {
+    local fingerprint="$1"
+    [[ "${fingerprint}" =~ ^[A-Za-z0-9+/]{43}=$ ]]
+}
+
+get_certificate_public_key_sha256() {
+    local cert_file="$1"
+    local fingerprint
+    [[ -f "${cert_file}" ]] || return 1
+    fingerprint="$(
+        set -o pipefail
+        openssl x509 -in "${cert_file}" -pubkey -noout 2>/dev/null |
+            openssl pkey -pubin -outform der 2>/dev/null |
+            openssl dgst -sha256 -binary 2>/dev/null |
+            openssl enc -base64 -A 2>/dev/null
+    )" || return 1
+    is_valid_certificate_public_key_sha256 "${fingerprint}" || return 1
+    printf '%s' "${fingerprint}"
+}
+
+generate_self_signed_certificate() {
+    local sni="$1"
+    local cert_file="${HY2_CONF_DIR}/server.crt"
+    local key_file="${HY2_CONF_DIR}/server.key"
+
+    if openssl req -x509 -nodes -newkey ec \
+        -pkeyopt ec_paramgen_curve:prime256v1 \
+        -keyout "${key_file}" -out "${cert_file}" \
+        -subj "/CN=${sni}" -days 36500 \
+        -addext "subjectAltName=DNS:${sni}" \
+        -addext "basicConstraints=critical,CA:FALSE" \
+        -addext "keyUsage=critical,digitalSignature" \
+        -addext "extendedKeyUsage=serverAuth" >/dev/null 2>&1; then
+        return 0
+    fi
+
+    openssl req -x509 -nodes -newkey ec \
+        -pkeyopt ec_paramgen_curve:prime256v1 \
+        -keyout "${key_file}" -out "${cert_file}" \
+        -subj "/CN=${sni}" -days 36500 >/dev/null 2>&1
+}
+
+# shellcheck shell=bash
+# 职责: 配置、证书与 systemd 用户权限
 
 set_config_dir_permissions() {
     local run_user run_group
@@ -481,26 +452,6 @@ set_server_config_permissions() {
     else
         chmod 644 "${HY2_CONF_FILE}" >/dev/null 2>&1 || true
     fi
-}
-
-write_meta_info() {
-    local ip="$1"
-    local port="$2"
-    local password="$3"
-    local sni="$4"
-    local insecure="$5"
-    local up_mbps="$6"
-    local down_mbps="$7"
-
-    cat << EOF | write_file_atomic "${HY2_META_FILE}"
-ip=${ip}
-port=${port}
-password=${password}
-sni=${sni}
-insecure=${insecure}
-up_mbps=${up_mbps}
-down_mbps=${down_mbps}
-EOF
 }
 
 get_service_run_user() {
@@ -531,6 +482,9 @@ set_tls_file_permissions() {
     chmod 600 "${HY2_CONF_DIR}/server.key" >/dev/null 2>&1 || true
     chmod 644 "${HY2_CONF_DIR}/server.crt" >/dev/null 2>&1 || true
 }
+
+# shellcheck shell=bash
+# 职责: 配置失败回滚与启动故障提示
 
 abort_pending_config_change() {
     local reason="$1"
@@ -590,272 +544,8 @@ show_service_failure_hint() {
     fi
 }
 
-render_singbox_outbound_snippet() {
-    local json_ip="$1"
-    local port="$2"
-    local up_mbps="$3"
-    local down_mbps="$4"
-    local json_password="$5"
-    local json_sni="$6"
-    local insecure="$7"
-    local public_key_sha="${8:-}"
-    local public_key_field=""
-
-    case "${insecure}" in
-        true)
-            is_valid_certificate_public_key_sha256 "${public_key_sha}" || return 1
-            ;;
-        false) ;;
-        *) return 1 ;;
-    esac
-    if [[ -n "${public_key_sha}" ]]; then
-        is_valid_certificate_public_key_sha256 "${public_key_sha}" || return 1
-        public_key_field="$(printf ',\n    "certificate_public_key_sha256": ["%s"]' "${public_key_sha}")"
-    fi
-
-    cat << EOF
-{
-  "type": "hysteria2",
-  "tag": "proxy",
-  "server": "${json_ip}",
-  "server_port": ${port},
-  "up_mbps": ${up_mbps},
-  "down_mbps": ${down_mbps},
-  "password": "${json_password}",
-  "tls": {
-    "enabled": true,
-    "server_name": "${json_sni}",
-    "insecure": ${insecure}${public_key_field}
-  }
-}
-EOF
-}
-
-render_v2rayn_yaml_snippet() {
-    local ip="$1"
-    local port="$2"
-    local password="$3"
-    local up_mbps="$4"
-    local down_mbps="$5"
-    local sni="$6"
-    local insecure="$7"
-    local cert_sha="${8:-}"
-    local yaml_server yaml_password yaml_sni
-
-    yaml_server="$(yaml_single_quote "$(format_host_for_url "${ip}"):${port}")"
-    yaml_password="$(yaml_single_quote "${password}")"
-    yaml_sni="$(yaml_single_quote "${sni}")"
-
-    cat << EOF
-server: ${yaml_server}
-auth: ${yaml_password}
-bandwidth:
-  up: ${up_mbps} mbps
-  down: ${down_mbps} mbps
-tls:
-  sni: ${yaml_sni}
-  insecure: ${insecure}
-EOF
-    if [[ -n "${cert_sha}" ]]; then
-        printf '  pinSHA256: %s\n' "${cert_sha}"
-    fi
-    cat << EOF
-socks5:
-  listen: 127.0.0.1:1080
-http:
-  listen: 127.0.0.1:8080
-EOF
-}
-
-print_v2rayn_insecure_notice() {
-    print_line
-    echo -e "${_yellow}[v2rayN / Xray 自签证书提醒]${_plain}"
-    echo -e "  原生 Hysteria2 使用 insecure=1 与 pinSHA256 验证自签证书。"
-    echo -e "  v2rayN / Xray 使用 pcs 映射 pinnedPeerCertSha256。"
-    echo -e "  使用 Xray 时请确保：v2rayN >= 7.17.1，Xray-core >= 26.2.6。"
-    echo -e "  建议使用 v2rayN >= 7.24.8，以包含下载器安全与 HY2 兼容修复。"
-    echo -e "  Sing-box 自签配置使用公钥固定，请使用 Sing-box >= 1.13.0。"
-    echo -e "  分享链接已移除 allowInsecure，不再依赖已废弃的跳过验证字段。"
-    echo -e "  重新生成自签证书后指纹会变化，客户端必须重新导入节点。"
-}
-
-render_singbox_full_template() {
-    local json_ip="$1"
-    local port="$2"
-    local up_mbps="$3"
-    local down_mbps="$4"
-    local json_password="$5"
-    local json_sni="$6"
-    local insecure="$7"
-    local public_key_sha="${8:-}"
-    local public_key_field=""
-
-    case "${insecure}" in
-        true)
-            is_valid_certificate_public_key_sha256 "${public_key_sha}" || return 1
-            ;;
-        false) ;;
-        *) return 1 ;;
-    esac
-    if [[ -n "${public_key_sha}" ]]; then
-        is_valid_certificate_public_key_sha256 "${public_key_sha}" || return 1
-        public_key_field="$(printf ',\n        "certificate_public_key_sha256": ["%s"]' "${public_key_sha}")"
-    fi
-
-    cat << EOF
-{
-  "dns": {
-    "servers": [
-      {
-        "type": "https",
-        "tag": "cf",
-        "server": "1.1.1.1",
-        "detour": "proxy"
-      },
-      {
-        "type": "udp",
-        "tag": "local",
-        "server": "223.5.5.5"
-      }
-    ],
-    "rules": [
-      {
-        "rule_set": "geosite-category-ads-all",
-        "action": "reject"
-      },
-      {
-        "rule_set": "geosite-cn",
-        "action": "route",
-        "server": "local"
-      }
-    ],
-    "final": "cf",
-    "strategy": "ipv4_only"
-  },
-  "inbounds": [
-    {
-      "type": "tun",
-      "tag": "tun-in",
-      "address": [
-        "172.19.0.1/30"
-      ],
-      "auto_route": true,
-      "strict_route": false
-    }
-  ],
-  "outbounds": [
-    {
-      "type": "hysteria2",
-      "tag": "proxy",
-      "server": "${json_ip}",
-      "server_port": ${port},
-      "up_mbps": ${up_mbps},
-      "down_mbps": ${down_mbps},
-      "password": "${json_password}",
-      "tls": {
-        "enabled": true,
-        "server_name": "${json_sni}",
-        "insecure": ${insecure}${public_key_field}
-      }
-    },
-    {
-      "type": "direct",
-      "tag": "direct"
-    }
-  ],
-  "route": {
-    "default_domain_resolver": "cf",
-    "rules": [
-      {
-        "action": "sniff"
-      },
-      {
-        "protocol": "dns",
-        "action": "hijack-dns"
-      },
-      {
-        "ip_is_private": true,
-        "action": "route",
-        "outbound": "direct"
-      },
-      {
-        "rule_set": [
-          "geosite-cn",
-          "geoip-cn"
-        ],
-        "action": "route",
-        "outbound": "direct"
-      },
-      {
-        "rule_set": "geosite-category-ads-all",
-        "action": "reject"
-      }
-    ],
-    "rule_set": [
-      {
-        "type": "remote",
-        "tag": "geosite-cn",
-        "format": "binary",
-        "url": "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-cn.srs",
-        "download_detour": "proxy"
-      },
-      {
-        "type": "remote",
-        "tag": "geoip-cn",
-        "format": "binary",
-        "url": "https://raw.githubusercontent.com/SagerNet/sing-geoip/rule-set/geoip-cn.srs",
-        "download_detour": "proxy"
-      },
-      {
-        "type": "remote",
-        "tag": "geosite-category-ads-all",
-        "format": "binary",
-        "url": "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-category-ads-all.srs",
-        "download_detour": "proxy"
-      }
-    ],
-    "final": "proxy",
-    "auto_detect_interface": true
-  },
-  "experimental": {
-    "cache_file": {
-      "enabled": true
-    }
-  }
-}
-EOF
-}
-
-pick_self_signed_sni() {
-    local pick custom_sni
-    PICKED_SNI=""
-    echo -e " [*] 请选择自签 SNI 预设域名："
-    echo -e "     (1) ${SELF_SNI_PRESETS[0]} (默认)"
-    echo -e "     (2) ${SELF_SNI_PRESETS[1]}"
-    echo -e "     (3) ${SELF_SNI_PRESETS[2]}"
-    echo -e "     (4) ${SELF_SNI_PRESETS[3]}"
-    echo -e "     (5) ${SELF_SNI_PRESETS[4]}"
-    echo -e "     (0) 手动输入域名"
-    read -r -p " [*] 请选择 [0-5] (默认 1): " pick
-    [[ -z "${pick}" ]] && pick=1
-
-    case "${pick}" in
-        1) PICKED_SNI="${SELF_SNI_PRESETS[0]}" ;;
-        2) PICKED_SNI="${SELF_SNI_PRESETS[1]}" ;;
-        3) PICKED_SNI="${SELF_SNI_PRESETS[2]}" ;;
-        4) PICKED_SNI="${SELF_SNI_PRESETS[3]}" ;;
-        5) PICKED_SNI="${SELF_SNI_PRESETS[4]}" ;;
-        0)
-            read -r -p " [*] 请输入用于伪装的 SNI 域名 (默认 ${DEFAULT_SELF_SNI}): " custom_sni
-            [[ -z "${custom_sni}" ]] && custom_sni="${DEFAULT_SELF_SNI}"
-            PICKED_SNI="${custom_sni}"
-            ;;
-        *)
-            err "输入无效，已使用默认 SNI: ${DEFAULT_SELF_SNI}"
-            PICKED_SNI="${DEFAULT_SELF_SNI}"
-            ;;
-    esac
-}
+# shellcheck shell=bash
+# 职责: Hysteria2 服务控制菜单
 
 service_control_menu() {
     while true; do
@@ -910,7 +600,9 @@ service_control_menu() {
     done
 }
 
-# --- 2. 核心控制模块: 安装与卸载 ---
+# shellcheck shell=bash
+# 职责: Hysteria2 内核安装、更新与卸载
+
 verify_hy2_installer() {
     local file="$1"
     [[ -s "${file}" ]] || return 1
@@ -964,6 +656,883 @@ install_hy2_core() {
         msg "暂时无法读取内核版本，可返回主菜单再次查看。"
     fi
 }
+
+uninstall_hy2() {
+    print_line
+    echo -e "${_red}[警告] 这将彻底卸载 Hysteria2 及所有节点配置！${_plain}"
+    read -r -p " => 确定要继续吗？(y/n): " confirm
+    if [[ "$confirm" == "y" || "$confirm" == "Y" ]]; then
+        systemctl stop "${HY2_SERVICE}" >/dev/null 2>&1 || true
+        systemctl disable "${HY2_SERVICE}" >/dev/null 2>&1 || true
+
+        rm -f /usr/local/bin/hysteria
+        rm -rf /etc/hysteria
+        rm -f /etc/systemd/system/hysteria-server.service
+        systemctl daemon-reload
+        ok "Hysteria2 已彻底卸载！"
+
+        rm -f /usr/local/bin/hy2
+        exit 0
+    else
+        msg "已取消卸载。"
+    fi
+}
+
+# shellcheck shell=bash
+# 职责: Hysteria2 服务端配置文件写入
+
+write_ca_config() {
+    local port="$1"
+    local domain="$2"
+    local email="$3"
+    local password="$4"
+    local masquerade_url="$5"
+
+    cat << EOF | write_file_atomic "${HY2_CONF_FILE}"
+listen: :${port}
+acme:
+  domains:
+    - $(yaml_single_quote "${domain}")
+  email: $(yaml_single_quote "${email}")
+auth:
+  type: password
+  password: $(yaml_single_quote "${password}")
+masquerade:
+  type: proxy
+  proxy:
+    url: $(yaml_single_quote "${masquerade_url}")
+    rewriteHost: true
+EOF
+}
+
+write_self_signed_config() {
+    local port="$1"
+    local password="$2"
+    local masquerade_url="$3"
+
+    cat << EOF | write_file_atomic "${HY2_CONF_FILE}"
+listen: :${port}
+tls:
+  cert: ${HY2_CONF_DIR}/server.crt
+  key: ${HY2_CONF_DIR}/server.key
+auth:
+  type: password
+  password: $(yaml_single_quote "${password}")
+masquerade:
+  type: proxy
+  proxy:
+    url: $(yaml_single_quote "${masquerade_url}")
+    rewriteHost: true
+EOF
+}
+
+# shellcheck shell=bash
+# 职责: Hysteria2 节点配置输入收集与校验
+
+reset_hy2_config_draft() {
+    HY2_DRAFT_PORT=""
+    HY2_DRAFT_PASSWORD=""
+    HY2_DRAFT_MASQUERADE_URL=""
+    HY2_DRAFT_UP_MBPS=""
+    HY2_DRAFT_DOWN_MBPS=""
+    HY2_DRAFT_CERT_TYPE=""
+    HY2_DRAFT_DOMAIN=""
+    HY2_DRAFT_EMAIL=""
+    HY2_DRAFT_SNI=""
+    HY2_DRAFT_INSECURE=""
+}
+
+collect_hy2_connection_settings() {
+    local default_pwd
+
+    read -r -p " => 请设置监听端口 (默认 ${DEFAULT_PORT}): " HY2_DRAFT_PORT
+    [[ -z "${HY2_DRAFT_PORT}" ]] && HY2_DRAFT_PORT="${DEFAULT_PORT}"
+    if ! is_valid_port "${HY2_DRAFT_PORT}"; then
+        err "端口无效，请输入 1-65535 的整数。"
+        sleep 2
+        return 1
+    fi
+    HY2_DRAFT_PORT="$((10#${HY2_DRAFT_PORT}))"
+
+    if ! default_pwd="$(openssl rand -hex 16)" || [[ -z "${default_pwd}" ]]; then
+        err "生成随机认证密码失败，请检查 openssl。"
+        sleep 2
+        return 1
+    fi
+    read -r -p " => 请设置认证密码 (默认随机: ${default_pwd}): " HY2_DRAFT_PASSWORD
+    [[ -z "${HY2_DRAFT_PASSWORD}" ]] && HY2_DRAFT_PASSWORD="${default_pwd}"
+
+    read -r -p " => 请设置伪装网址 (默认 ${DEFAULT_MASQUERADE_URL}): " HY2_DRAFT_MASQUERADE_URL
+    [[ -z "${HY2_DRAFT_MASQUERADE_URL}" ]] && HY2_DRAFT_MASQUERADE_URL="${DEFAULT_MASQUERADE_URL}"
+    if ! is_valid_url "${HY2_DRAFT_MASQUERADE_URL}"; then
+        err "伪装网址格式无效，必须以 http:// 或 https:// 开头。"
+        sleep 2
+        return 1
+    fi
+
+    read -r -p " => 请设置上行带宽 Mbps (默认 ${DEFAULT_UP_MBPS}): " HY2_DRAFT_UP_MBPS
+    [[ -z "${HY2_DRAFT_UP_MBPS}" ]] && HY2_DRAFT_UP_MBPS="${DEFAULT_UP_MBPS}"
+    if ! is_positive_integer "${HY2_DRAFT_UP_MBPS}"; then
+        err "上行带宽无效，请输入大于 0 的整数。"
+        sleep 2
+        return 1
+    fi
+    HY2_DRAFT_UP_MBPS="$((10#${HY2_DRAFT_UP_MBPS}))"
+
+    read -r -p " => 请设置下行带宽 Mbps (默认 ${DEFAULT_DOWN_MBPS}): " HY2_DRAFT_DOWN_MBPS
+    [[ -z "${HY2_DRAFT_DOWN_MBPS}" ]] && HY2_DRAFT_DOWN_MBPS="${DEFAULT_DOWN_MBPS}"
+    if ! is_positive_integer "${HY2_DRAFT_DOWN_MBPS}"; then
+        err "下行带宽无效，请输入大于 0 的整数。"
+        sleep 2
+        return 1
+    fi
+    HY2_DRAFT_DOWN_MBPS="$((10#${HY2_DRAFT_DOWN_MBPS}))"
+}
+
+pick_self_signed_sni() {
+    local pick custom_sni
+    PICKED_SNI=""
+    echo -e " [*] 请选择自签 SNI 预设域名："
+    echo -e "     (1) ${SELF_SNI_PRESETS[0]} (默认)"
+    echo -e "     (2) ${SELF_SNI_PRESETS[1]}"
+    echo -e "     (3) ${SELF_SNI_PRESETS[2]}"
+    echo -e "     (4) ${SELF_SNI_PRESETS[3]}"
+    echo -e "     (5) ${SELF_SNI_PRESETS[4]}"
+    echo -e "     (0) 手动输入域名"
+    read -r -p " [*] 请选择 [0-5] (默认 1): " pick
+    [[ -z "${pick}" ]] && pick=1
+
+    case "${pick}" in
+        1) PICKED_SNI="${SELF_SNI_PRESETS[0]}" ;;
+        2) PICKED_SNI="${SELF_SNI_PRESETS[1]}" ;;
+        3) PICKED_SNI="${SELF_SNI_PRESETS[2]}" ;;
+        4) PICKED_SNI="${SELF_SNI_PRESETS[3]}" ;;
+        5) PICKED_SNI="${SELF_SNI_PRESETS[4]}" ;;
+        0)
+            read -r -p " [*] 请输入用于伪装的 SNI 域名 (默认 ${DEFAULT_SELF_SNI}): " custom_sni
+            [[ -z "${custom_sni}" ]] && custom_sni="${DEFAULT_SELF_SNI}"
+            PICKED_SNI="${custom_sni}"
+            ;;
+        *)
+            err "输入无效，已使用默认 SNI: ${DEFAULT_SELF_SNI}"
+            PICKED_SNI="${DEFAULT_SELF_SNI}"
+            ;;
+    esac
+}
+
+collect_hy2_certificate_settings() {
+    echo -e "\n[*] 请选择证书模式："
+    echo -e "  (1) CA 域名证书 (推荐，需要提前将域名解析到本 VPS)"
+    echo -e "  (2) 自签证书 (无需域名，直接使用 IP 连通)"
+    read -r -p " => 请选择 [1-2]: " HY2_DRAFT_CERT_TYPE
+    if [[ "${HY2_DRAFT_CERT_TYPE}" != "1" && "${HY2_DRAFT_CERT_TYPE}" != "2" ]]; then
+        err "证书模式输入无效，请输入 1 或 2。"
+        sleep 2
+        return 1
+    fi
+
+    if [[ "${HY2_DRAFT_CERT_TYPE}" == "1" ]]; then
+        read -r -p " [*] 请输入已解析到本机的域名: " HY2_DRAFT_DOMAIN
+        if ! is_valid_domain "${HY2_DRAFT_DOMAIN}"; then
+            err "域名格式无效，请输入有效域名（例如 example.com）。"
+            sleep 2
+            return 1
+        fi
+        read -r -p " [*] 请输入邮箱 (用于自动申请证书，随意填): " HY2_DRAFT_EMAIL
+        [[ -z "${HY2_DRAFT_EMAIL}" ]] && HY2_DRAFT_EMAIL="admin@${HY2_DRAFT_DOMAIN}"
+        if ! is_valid_email "${HY2_DRAFT_EMAIL}"; then
+            err "邮箱格式无效，请重新输入。"
+            sleep 2
+            return 1
+        fi
+
+        HY2_DRAFT_SNI="${HY2_DRAFT_DOMAIN}"
+        HY2_DRAFT_INSECURE="false"
+    else
+        pick_self_signed_sni
+        HY2_DRAFT_SNI="${PICKED_SNI}"
+        if ! is_valid_domain "${HY2_DRAFT_SNI}"; then
+            err "SNI 域名格式无效，请输入有效域名。"
+            sleep 2
+            return 1
+        fi
+        HY2_DRAFT_INSECURE="true"
+    fi
+}
+
+# shellcheck shell=bash
+# 职责: Hysteria2 配置变更的准备、证书应用与启用
+
+prepare_hy2_config_change() {
+    if ! mkdir -p "${HY2_CONF_DIR}"; then
+        err "创建配置目录失败: ${HY2_CONF_DIR}"
+        sleep 2
+        return 1
+    fi
+    set_config_dir_permissions
+    if ! backup_runtime_files; then
+        err "备份当前配置失败，已中止以避免覆盖现有配置。"
+        sleep 2
+        return 1
+    fi
+}
+
+apply_hy2_ca_config() {
+    local port="$1"
+    local domain="$2"
+    local email="$3"
+    local password="$4"
+    local masquerade_url="$5"
+
+    if ! rm -f -- "${HY2_CONF_DIR}/server.crt" "${HY2_CONF_DIR}/server.key"; then
+        abort_pending_config_change "清理旧自签证书失败"
+        sleep 2
+        return 1
+    fi
+    if ! write_ca_config "${port}" "${domain}" "${email}" "${password}" "${masquerade_url}"; then
+        abort_pending_config_change "写入 CA 配置失败"
+        sleep 2
+        return 1
+    fi
+    set_server_config_permissions
+}
+
+apply_hy2_self_signed_config() {
+    local port="$1"
+    local password="$2"
+    local masquerade_url="$3"
+    local sni="$4"
+
+    msg "正在生成高强度自签名证书..."
+    if ! generate_self_signed_certificate "${sni}"; then
+        abort_pending_config_change "自签证书生成失败"
+        sleep 2
+        return 1
+    fi
+
+    if ! get_certificate_sha256 "${HY2_CONF_DIR}/server.crt" >/dev/null; then
+        abort_pending_config_change "无法计算自签证书 SHA-256 指纹"
+        sleep 2
+        return 1
+    fi
+
+    set_tls_file_permissions
+
+    if ! write_self_signed_config "${port}" "${password}" "${masquerade_url}"; then
+        abort_pending_config_change "写入自签配置失败"
+        sleep 2
+        return 1
+    fi
+    set_server_config_permissions
+}
+
+activate_hy2_config() {
+    local port="$1"
+    local password="$2"
+    local sni="$3"
+    local insecure="$4"
+    local up_mbps="$5"
+    local down_mbps="$6"
+    local server_ip
+
+    server_ip="$(fetch_server_ip)"
+    if [[ -z "${server_ip}" ]]; then
+        abort_pending_config_change "无法获取服务器 IP"
+        sleep 2
+        return 1
+    fi
+
+    if ! write_meta_info "${server_ip}" "${port}" "${password}" "${sni}" "${insecure}" "${up_mbps}" "${down_mbps}"; then
+        abort_pending_config_change "写入节点元数据失败"
+        sleep 2
+        return 1
+    fi
+    chmod 600 "${HY2_META_FILE}" >/dev/null 2>&1 || true
+
+    msg "检测到服务运行用户: $(get_service_run_user)"
+    msg "正在重启 Hysteria2 服务以应用新配置..."
+    if ! restart_service_with_rollback; then
+        sleep 2
+        return 1
+    fi
+    sleep 2
+    if systemctl is-active --quiet "${HY2_SERVICE}"; then
+        ok "Hysteria2 节点配置并启动成功！"
+    else
+        err "启动失败！可能是端口被占用，或 CA 证书申请失败。请使用菜单 (5) 查看日志。"
+        show_service_failure_hint
+        err "检测到服务未保持运行，正在尝试自动回滚到上一版配置..."
+        if restore_runtime_files && systemctl restart "${HY2_SERVICE}"; then
+            err "已自动回滚到上一版配置，本次变更未生效。"
+        else
+            err "自动回滚失败，请手动检查配置与日志。"
+        fi
+        show_recent_service_logs
+        sleep 3
+        return 1
+    fi
+    sleep 2
+}
+
+# shellcheck shell=bash
+# 职责: Hysteria2 交互配置流程编排
+
+config_hy2() {
+    if ! ensure_hy2_core_installed; then
+        sleep 2
+        return 1
+    fi
+
+    clear
+    print_line
+    echo -e "               ${_green}--- Hysteria2 节点配置 ---${_plain}"
+    print_line
+
+    reset_hy2_config_draft
+    if ! collect_hy2_connection_settings; then
+        return 1
+    fi
+    if ! collect_hy2_certificate_settings; then
+        return 1
+    fi
+
+    if ! prepare_hy2_config_change; then
+        return 1
+    fi
+
+    if [[ "${HY2_DRAFT_CERT_TYPE}" == "1" ]]; then
+        if ! apply_hy2_ca_config \
+            "${HY2_DRAFT_PORT}" \
+            "${HY2_DRAFT_DOMAIN}" \
+            "${HY2_DRAFT_EMAIL}" \
+            "${HY2_DRAFT_PASSWORD}" \
+            "${HY2_DRAFT_MASQUERADE_URL}"; then
+            return 1
+        fi
+    else
+        if ! apply_hy2_self_signed_config \
+            "${HY2_DRAFT_PORT}" \
+            "${HY2_DRAFT_PASSWORD}" \
+            "${HY2_DRAFT_MASQUERADE_URL}" \
+            "${HY2_DRAFT_SNI}"; then
+            return 1
+        fi
+    fi
+
+    activate_hy2_config \
+        "${HY2_DRAFT_PORT}" \
+        "${HY2_DRAFT_PASSWORD}" \
+        "${HY2_DRAFT_SNI}" \
+        "${HY2_DRAFT_INSECURE}" \
+        "${HY2_DRAFT_UP_MBPS}" \
+        "${HY2_DRAFT_DOWN_MBPS}"
+}
+
+# shellcheck shell=bash
+# 职责: Hysteria2 分享链接
+
+render_hysteria2_share_url() {
+    local ip="$1"
+    local port="$2"
+    local password="$3"
+    local sni="$4"
+    local insecure="$5"
+    local cert_sha="${6:-}"
+    local query
+
+    case "${insecure}" in
+        true) ;;
+        false) ;;
+        *) return 1 ;;
+    esac
+
+    if [[ -n "${cert_sha}" ]]; then
+        cert_sha="$(normalize_certificate_sha256 "${cert_sha}")" || return 1
+    fi
+    if [[ "${insecure}" == "true" && -z "${cert_sha}" ]]; then
+        return 1
+    fi
+
+    query="sni=$(url_encode "${sni}")"
+    if [[ "${insecure}" == "true" ]]; then
+        query+="&insecure=1"
+    fi
+    if [[ -n "${cert_sha}" ]]; then
+        query+="&pinSHA256=${cert_sha}&pcs=${cert_sha}"
+    fi
+
+    printf 'hysteria2://%s@%s:%s/?%s#Hysteria2-LuoPo' \
+        "$(url_encode "${password}")" \
+        "$(format_host_for_url "${ip}")" \
+        "${port}" \
+        "${query}"
+}
+
+# shellcheck shell=bash
+# 职责: Sing-box Hysteria2 出站与证书公钥固定字段
+
+render_singbox_public_key_field() {
+    local insecure="$1"
+    local public_key_sha="${2:-}"
+    local indent="$3"
+
+    case "${insecure}" in
+        true)
+            is_valid_certificate_public_key_sha256 "${public_key_sha}" || return 1
+            ;;
+        false) ;;
+        *) return 1 ;;
+    esac
+    if [[ -n "${public_key_sha}" ]]; then
+        is_valid_certificate_public_key_sha256 "${public_key_sha}" || return 1
+        printf ',\n%s"certificate_public_key_sha256": ["%s"]' "${indent}" "${public_key_sha}"
+    fi
+}
+
+render_singbox_outbound_snippet() {
+    local json_ip="$1"
+    local port="$2"
+    local up_mbps="$3"
+    local down_mbps="$4"
+    local json_password="$5"
+    local json_sni="$6"
+    local insecure="$7"
+    local public_key_sha="${8:-}"
+    local public_key_field
+
+    public_key_field="$(render_singbox_public_key_field "${insecure}" "${public_key_sha}" "    ")" || return 1
+
+    cat << EOF
+{
+  "type": "hysteria2",
+  "tag": "proxy",
+  "server": "${json_ip}",
+  "server_port": ${port},
+  "up_mbps": ${up_mbps},
+  "down_mbps": ${down_mbps},
+  "password": "${json_password}",
+  "tls": {
+    "enabled": true,
+    "server_name": "${json_sni}",
+    "insecure": ${insecure}${public_key_field}
+  }
+}
+EOF
+}
+
+render_singbox_outbounds_section() {
+    local json_ip="$1"
+    local port="$2"
+    local up_mbps="$3"
+    local down_mbps="$4"
+    local json_password="$5"
+    local json_sni="$6"
+    local insecure="$7"
+    local public_key_field="$8"
+
+    cat << EOF
+  "outbounds": [
+    {
+      "type": "hysteria2",
+      "tag": "proxy",
+      "server": "${json_ip}",
+      "server_port": ${port},
+      "up_mbps": ${up_mbps},
+      "down_mbps": ${down_mbps},
+      "password": "${json_password}",
+      "tls": {
+        "enabled": true,
+        "server_name": "${json_sni}",
+        "insecure": ${insecure}${public_key_field}
+      }
+    },
+    {
+      "type": "direct",
+      "tag": "direct"
+    }
+  ],
+EOF
+}
+
+# shellcheck shell=bash
+# 职责: Sing-box DNS 配置分段
+
+render_singbox_dns_section() {
+    cat << 'EOF'
+  "dns": {
+    "servers": [
+      {
+        "type": "https",
+        "tag": "cf",
+        "server": "1.1.1.1",
+        "detour": "proxy"
+      },
+      {
+        "type": "udp",
+        "tag": "local",
+        "server": "223.5.5.5"
+      }
+    ],
+    "rules": [
+      {
+        "rule_set": "geosite-category-ads-all",
+        "action": "reject"
+      },
+      {
+        "rule_set": "geosite-cn",
+        "action": "route",
+        "server": "local"
+      }
+    ],
+    "final": "cf",
+    "strategy": "ipv4_only"
+  },
+EOF
+}
+
+# shellcheck shell=bash
+# 职责: Sing-box 路由规则与远程规则集分段
+
+render_singbox_route_section() {
+    cat << 'EOF'
+  "route": {
+    "default_domain_resolver": "cf",
+    "rules": [
+      {
+        "action": "sniff"
+      },
+      {
+        "protocol": "dns",
+        "action": "hijack-dns"
+      },
+      {
+        "ip_is_private": true,
+        "action": "route",
+        "outbound": "direct"
+      },
+      {
+        "rule_set": [
+          "geosite-cn",
+          "geoip-cn"
+        ],
+        "action": "route",
+        "outbound": "direct"
+      },
+      {
+        "rule_set": "geosite-category-ads-all",
+        "action": "reject"
+      }
+    ],
+    "rule_set": [
+      {
+        "type": "remote",
+        "tag": "geosite-cn",
+        "format": "binary",
+        "url": "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-cn.srs",
+        "download_detour": "proxy"
+      },
+      {
+        "type": "remote",
+        "tag": "geoip-cn",
+        "format": "binary",
+        "url": "https://raw.githubusercontent.com/SagerNet/sing-geoip/rule-set/geoip-cn.srs",
+        "download_detour": "proxy"
+      },
+      {
+        "type": "remote",
+        "tag": "geosite-category-ads-all",
+        "format": "binary",
+        "url": "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-category-ads-all.srs",
+        "download_detour": "proxy"
+      }
+    ],
+    "final": "proxy",
+    "auto_detect_interface": true
+  },
+EOF
+}
+
+# shellcheck shell=bash
+# 职责: Sing-box 完整配置模板组合
+
+render_singbox_inbounds_section() {
+    cat << 'EOF'
+  "inbounds": [
+    {
+      "type": "tun",
+      "tag": "tun-in",
+      "address": [
+        "172.19.0.1/30"
+      ],
+      "auto_route": true,
+      "strict_route": false
+    }
+  ],
+EOF
+}
+
+render_singbox_experimental_section() {
+    cat << 'EOF'
+  "experimental": {
+    "cache_file": {
+      "enabled": true
+    }
+  }
+EOF
+}
+
+render_singbox_full_template() {
+    local json_ip="$1"
+    local port="$2"
+    local up_mbps="$3"
+    local down_mbps="$4"
+    local json_password="$5"
+    local json_sni="$6"
+    local insecure="$7"
+    local public_key_sha="${8:-}"
+    local public_key_field
+
+    public_key_field="$(render_singbox_public_key_field "${insecure}" "${public_key_sha}" "        ")" || return 1
+
+    cat << EOF
+{
+$(render_singbox_dns_section)
+$(render_singbox_inbounds_section)
+$(render_singbox_outbounds_section "${json_ip}" "${port}" "${up_mbps}" "${down_mbps}" "${json_password}" "${json_sni}" "${insecure}" "${public_key_field}")
+$(render_singbox_route_section)
+$(render_singbox_experimental_section)
+}
+EOF
+}
+
+# shellcheck shell=bash
+# 职责: Sing-box 完整模板展示入口
+
+show_singbox_template() {
+    if ! require_meta_info; then
+        return
+    fi
+
+    local json_ip json_password json_sni cert_public_key_sha=""
+    if [[ "${insecure}" == "true" ]]; then
+        cert_public_key_sha="$(get_certificate_public_key_sha256 "${HY2_CONF_DIR}/server.crt" 2>/dev/null || true)"
+        if [[ -z "${cert_public_key_sha}" ]]; then
+            err "自签证书公钥指纹读取失败，无法安全生成 Sing-box 配置。"
+            echo -e "  请通过主菜单 (2) 重新配置自签证书后再导出。"
+            wait_return
+            return 1
+        fi
+    fi
+    json_ip="$(json_escape "${ip}")"
+    json_password="$(json_escape "${password}")"
+    json_sni="$(json_escape "${sni}")"
+
+    clear
+    print_line
+    echo -e "     ${_green}--- Sing-box 完整模板 (Android/iOS / 1.13+) ---${_plain}"
+    print_line
+    if ! render_singbox_full_template "${json_ip}" "${port}" "${up_mbps}" "${down_mbps}" "${json_password}" "${json_sni}" "${insecure}" "${cert_public_key_sha}"; then
+        err "生成 Sing-box 完整模板失败，请重新配置节点。"
+    fi
+    print_line
+    wait_return
+}
+
+# shellcheck shell=bash
+# 职责: v2rayN 配置片段与兼容提醒
+
+render_v2rayn_yaml_snippet() {
+    local ip="$1"
+    local port="$2"
+    local password="$3"
+    local up_mbps="$4"
+    local down_mbps="$5"
+    local sni="$6"
+    local insecure="$7"
+    local cert_sha="${8:-}"
+    local yaml_server yaml_password yaml_sni
+
+    yaml_server="$(yaml_single_quote "$(format_host_for_url "${ip}"):${port}")"
+    yaml_password="$(yaml_single_quote "${password}")"
+    yaml_sni="$(yaml_single_quote "${sni}")"
+
+    cat << EOF
+server: ${yaml_server}
+auth: ${yaml_password}
+bandwidth:
+  up: ${up_mbps} mbps
+  down: ${down_mbps} mbps
+tls:
+  sni: ${yaml_sni}
+  insecure: ${insecure}
+EOF
+    if [[ -n "${cert_sha}" ]]; then
+        printf '  pinSHA256: %s\n' "${cert_sha}"
+    fi
+    cat << EOF
+socks5:
+  listen: 127.0.0.1:1080
+http:
+  listen: 127.0.0.1:8080
+EOF
+}
+
+print_v2rayn_insecure_notice() {
+    print_line
+    echo -e "${_yellow}[v2rayN / Xray 自签证书提醒]${_plain}"
+    echo -e "  原生 Hysteria2 使用 insecure=1 与 pinSHA256 验证自签证书。"
+    echo -e "  v2rayN / Xray 使用 pcs 映射 pinnedPeerCertSha256。"
+    echo -e "  使用 Xray 时请确保：v2rayN >= 7.17.1，Xray-core >= 26.2.6。"
+    echo -e "  建议使用 v2rayN >= 7.24.8，以包含下载器安全与 HY2 兼容修复。"
+    echo -e "  Sing-box 自签配置使用公钥固定，请使用 Sing-box >= 1.13.0。"
+    echo -e "  分享链接已移除 allowInsecure，不再依赖已废弃的跳过验证字段。"
+    echo -e "  重新生成自签证书后指纹会变化，客户端必须重新导入节点。"
+}
+
+# shellcheck shell=bash
+# 职责: 客户端节点参数与证书指纹摘要展示
+
+print_client_summary() {
+    local cert_sha="$1"
+    local cert_public_key_sha="$2"
+
+    clear
+    print_line
+    echo -e "               ${_green}--- Hysteria2 客户端配置 ---${_plain}"
+    print_line
+    echo -e "  [*] 服务器 IP : ${_yellow}${ip}${_plain}"
+    echo -e "  [*] 端口      : ${_yellow}${port}${_plain}"
+    echo -e "  [*] 密码      : ${_yellow}${password}${_plain}"
+    echo -e "  [*] SNI伪装   : ${_yellow}${sni}${_plain}"
+    echo -e "  [*] 跳过证书  : ${_yellow}${insecure}${_plain} (自签必须为true)"
+    if [[ "${insecure}" == "true" ]]; then
+        if [[ -n "${cert_sha}" ]]; then
+            echo -e "  [*] 证书指纹  : ${_yellow}${cert_sha}${_plain}"
+        else
+            echo -e "  [!] 证书指纹  : ${_red}读取失败，已禁止导出客户端链接${_plain}"
+        fi
+        if [[ -n "${cert_public_key_sha}" ]]; then
+            echo -e "  [*] 公钥指纹  : ${_yellow}${cert_public_key_sha}${_plain} (Sing-box)"
+        else
+            echo -e "  [!] 公钥指纹  : ${_red}读取失败，已禁止导出 Sing-box 配置${_plain}"
+        fi
+    fi
+    echo -e "  [*] 上行带宽  : ${_yellow}${up_mbps}${_plain} Mbps"
+    echo -e "  [*] 下行带宽  : ${_yellow}${down_mbps}${_plain} Mbps"
+    print_line
+}
+
+# shellcheck shell=bash
+# 职责: 客户端导出前安全校验与多格式配置输出
+
+ensure_client_export_material() {
+    local cert_sha="$1"
+    local cert_public_key_sha="$2"
+
+    if [[ "${insecure}" == "true" && ( -z "${cert_sha}" || -z "${cert_public_key_sha}" ) ]]; then
+        err "自签证书校验值读取失败，无法安全生成客户端配置。"
+        echo -e "  请通过主菜单 (2) 重新配置自签证书后再导出。"
+        wait_return
+        return 1
+    fi
+}
+
+print_client_exports() {
+    local cert_sha="$1"
+    local cert_public_key_sha="$2"
+    local hy2_url json_ip json_password json_sni
+
+    if ! hy2_url="$(render_hysteria2_share_url "${ip}" "${port}" "${password}" "${sni}" "${insecure}" "${cert_sha}")"; then
+        err "生成 Hysteria2 分享链接失败，请重新配置节点。"
+        wait_return
+        return 1
+    fi
+
+    json_ip="$(json_escape "${ip}")"
+    json_password="$(json_escape "${password}")"
+    json_sni="$(json_escape "${sni}")"
+    echo -e "${_green}[Link] 一键导入链接 (推荐 V2rayN / NekoBox / Clash):${_plain}"
+    echo -e "${hy2_url}"
+    print_line
+
+    echo -e "${_green}[JSON] Sing-box 1.13+ (Android/iOS) 专属 Outbound 模块:${_plain}"
+    if ! render_singbox_outbound_snippet "${json_ip}" "${port}" "${up_mbps}" "${down_mbps}" "${json_password}" "${json_sni}" "${insecure}" "${cert_public_key_sha}"; then
+        err "生成 Sing-box Outbound 失败，请重新配置节点。"
+        wait_return
+        return 1
+    fi
+    print_line
+    echo -e "${_green}[YAML] v2rayN / nekoray 自定义配置片段:${_plain}"
+    render_v2rayn_yaml_snippet "${ip}" "${port}" "${password}" "${up_mbps}" "${down_mbps}" "${sni}" "${insecure}" "${cert_sha}"
+}
+
+# shellcheck shell=bash
+# 职责: 客户端配置查看流程编排
+
+show_info() {
+    if ! require_meta_info; then
+        return
+    fi
+
+    local cert_sha="" cert_public_key_sha=""
+    if [[ "${insecure}" == "true" ]]; then
+        cert_sha="$(get_certificate_sha256 "${HY2_CONF_DIR}/server.crt" 2>/dev/null || true)"
+        cert_public_key_sha="$(get_certificate_public_key_sha256 "${HY2_CONF_DIR}/server.crt" 2>/dev/null || true)"
+    fi
+
+    print_client_summary "${cert_sha}" "${cert_public_key_sha}"
+
+    if ! ensure_client_export_material "${cert_sha}" "${cert_public_key_sha}"; then
+        return 1
+    fi
+
+    if [[ "${insecure}" == "true" ]]; then
+        print_v2rayn_insecure_notice
+    fi
+
+    if ! print_client_exports "${cert_sha}" "${cert_public_key_sha}"; then
+        return 1
+    fi
+    print_line
+    wait_return
+}
+
+# shellcheck shell=bash
+# 职责: Hysteria2 服务管理与文件路径速查展示
+
+show_cheatsheet() {
+    clear
+    print_line
+    echo -e "               ${_green}--- 常用指令速查 ---${_plain}"
+    print_line
+    echo -e "${_green}[服务器管理]${_plain}"
+    echo -e "bash <(curl -fsSL https://raw.githubusercontent.com/LuoPoJunZi/hysteria2-luopo/main/install.sh)"
+    echo -e "bash <(curl -fsSL https://get.hy2.sh/)"
+    echo -e "systemctl start ${HY2_SERVICE}"
+    echo -e "systemctl restart ${HY2_SERVICE}"
+    echo -e "systemctl status ${HY2_SERVICE} --no-pager -l"
+    echo -e "systemctl stop ${HY2_SERVICE}"
+    echo -e "systemctl enable ${HY2_SERVICE}"
+    echo -e "journalctl -u ${HY2_SERVICE} --no-pager -n 100 -f"
+    print_line
+    echo -e "${_green}[自签证书生成]${_plain}"
+    echo -e "openssl req -x509 -nodes -newkey ec \\"
+    echo -e "  -pkeyopt ec_paramgen_curve:prime256v1 \\"
+    echo -e "  -keyout ${HY2_CONF_DIR}/server.key -out ${HY2_CONF_DIR}/server.crt \\"
+    echo -e "  -subj \"/CN=bing.com\" -days 36500 \\"
+    echo -e "  -addext \"subjectAltName=DNS:bing.com\" \\"
+    echo -e "  -addext \"basicConstraints=critical,CA:FALSE\" \\"
+    echo -e "  -addext \"extendedKeyUsage=serverAuth\""
+    print_line
+    echo -e "${_green}[配置文件路径]${_plain}"
+    echo -e "服务配置: ${HY2_CONF_FILE}"
+    echo -e "元数据  : ${HY2_META_FILE}"
+    print_line
+    wait_return
+}
+
+# shellcheck shell=bash
+# 职责: 管理面板单文件更新与回滚
 
 verify_downloaded_panel() {
     local file="$1"
@@ -1069,592 +1638,294 @@ update_panel_script() {
     wait_return
 }
 
-uninstall_hy2() {
-    print_line
-    echo -e "${_red}[警告] 这将彻底卸载 Hysteria2 及所有节点配置！${_plain}"
-    read -r -p " => 确定要继续吗？(y/n): " confirm
-    if [[ "$confirm" == "y" || "$confirm" == "Y" ]]; then
-        systemctl stop "${HY2_SERVICE}" >/dev/null 2>&1 || true
-        systemctl disable "${HY2_SERVICE}" >/dev/null 2>&1 || true
+# shellcheck shell=bash
+# 职责: 诊断上下文、计数与建议去重
 
-        rm -f /usr/local/bin/hysteria
-        rm -rf /etc/hysteria
-        rm -f /etc/systemd/system/hysteria-server.service
-        systemctl daemon-reload
-        ok "Hysteria2 已彻底卸载！"
+diagnostic_reset_context() {
+    DIAG_OK_COUNT=0
+    DIAG_WARN_COUNT=0
+    DIAG_FAIL_COUNT=0
+    DIAG_TIMESTAMP="$(date '+%Y%m%d-%H%M%S')"
+    DIAG_FILE="${HY2_DIAG_DIR}/hy2-diagnose-${DIAG_TIMESTAMP}.log"
+    DIAG_CONCLUSIONS=()
+    DIAG_SUGGESTIONS=()
+    DIAG_COMMANDS=()
+    : > "${DIAG_FILE}" 2>/dev/null || DIAG_FILE=""
+}
 
-        rm -f /usr/local/bin/hy2
-        exit 0
-    else
-        msg "已取消卸载。"
+diagnostic_log() {
+    local text="$1"
+    if [[ -n "${DIAG_FILE}" ]]; then
+        echo -e "${text}" >> "${DIAG_FILE}"
     fi
 }
 
-# --- 3. 核心控制模块: 节点配置与生成 ---
-config_hy2() {
-    local port default_pwd password masquerade_url up_mbps down_mbps cert_type
-    local domain email sni insecure server_ip
-
-    if ! ensure_hy2_core_installed; then
-        sleep 2
-        return 1
-    fi
-
-    clear
-    print_line
-    echo -e "               ${_green}--- Hysteria2 节点配置 ---${_plain}"
-    print_line
-
-    read -r -p " => 请设置监听端口 (默认 ${DEFAULT_PORT}): " port
-    [[ -z "${port}" ]] && port="${DEFAULT_PORT}"
-    if ! is_valid_port "${port}"; then
-        err "端口无效，请输入 1-65535 的整数。"
-        sleep 2
-        return 1
-    fi
-    port="$((10#${port}))"
-
-    if ! default_pwd="$(openssl rand -hex 16)" || [[ -z "${default_pwd}" ]]; then
-        err "生成随机认证密码失败，请检查 openssl。"
-        sleep 2
-        return 1
-    fi
-    read -r -p " => 请设置认证密码 (默认随机: ${default_pwd}): " password
-    [[ -z "${password}" ]] && password="${default_pwd}"
-
-    read -r -p " => 请设置伪装网址 (默认 ${DEFAULT_MASQUERADE_URL}): " masquerade_url
-    [[ -z "${masquerade_url}" ]] && masquerade_url="${DEFAULT_MASQUERADE_URL}"
-    if ! is_valid_url "${masquerade_url}"; then
-        err "伪装网址格式无效，必须以 http:// 或 https:// 开头。"
-        sleep 2
-        return 1
-    fi
-
-    read -r -p " => 请设置上行带宽 Mbps (默认 ${DEFAULT_UP_MBPS}): " up_mbps
-    [[ -z "${up_mbps}" ]] && up_mbps="${DEFAULT_UP_MBPS}"
-    if ! is_positive_integer "${up_mbps}"; then
-        err "上行带宽无效，请输入大于 0 的整数。"
-        sleep 2
-        return 1
-    fi
-    up_mbps="$((10#${up_mbps}))"
-
-    read -r -p " => 请设置下行带宽 Mbps (默认 ${DEFAULT_DOWN_MBPS}): " down_mbps
-    [[ -z "${down_mbps}" ]] && down_mbps="${DEFAULT_DOWN_MBPS}"
-    if ! is_positive_integer "${down_mbps}"; then
-        err "下行带宽无效，请输入大于 0 的整数。"
-        sleep 2
-        return 1
-    fi
-    down_mbps="$((10#${down_mbps}))"
-
-    echo -e "\n[*] 请选择证书模式："
-    echo -e "  (1) CA 域名证书 (推荐，需要提前将域名解析到本 VPS)"
-    echo -e "  (2) 自签证书 (无需域名，直接使用 IP 连通)"
-    read -r -p " => 请选择 [1-2]: " cert_type
-    if [[ "${cert_type}" != "1" && "${cert_type}" != "2" ]]; then
-        err "证书模式输入无效，请输入 1 或 2。"
-        sleep 2
-        return 1
-    fi
-
-    if [[ "${cert_type}" == "1" ]]; then
-        read -r -p " [*] 请输入已解析到本机的域名: " domain
-        if ! is_valid_domain "${domain}"; then
-            err "域名格式无效，请输入有效域名（例如 example.com）。"
-            sleep 2
-            return 1
-        fi
-        read -r -p " [*] 请输入邮箱 (用于自动申请证书，随意填): " email
-        [[ -z "${email}" ]] && email="admin@${domain}"
-        if ! is_valid_email "${email}"; then
-            err "邮箱格式无效，请重新输入。"
-            sleep 2
-            return 1
-        fi
-
-        sni="${domain}"
-        insecure="false"
-    else
-        pick_self_signed_sni
-        sni="${PICKED_SNI}"
-        if ! is_valid_domain "${sni}"; then
-            err "SNI 域名格式无效，请输入有效域名。"
-            sleep 2
-            return 1
-        fi
-        insecure="true"
-    fi
-
-    if ! mkdir -p "${HY2_CONF_DIR}"; then
-        err "创建配置目录失败: ${HY2_CONF_DIR}"
-        sleep 2
-        return 1
-    fi
-    set_config_dir_permissions
-    if ! backup_runtime_files; then
-        err "备份当前配置失败，已中止以避免覆盖现有配置。"
-        sleep 2
-        return 1
-    fi
-
-    if [[ "${cert_type}" == "1" ]]; then
-        if ! rm -f -- "${HY2_CONF_DIR}/server.crt" "${HY2_CONF_DIR}/server.key"; then
-            abort_pending_config_change "清理旧自签证书失败"
-            sleep 2
-            return 1
-        fi
-        if ! write_ca_config "${port}" "${domain}" "${email}" "${password}" "${masquerade_url}"; then
-            abort_pending_config_change "写入 CA 配置失败"
-            sleep 2
-            return 1
-        fi
-        set_server_config_permissions
-    else
-        msg "正在生成高强度自签名证书..."
-        if ! generate_self_signed_certificate "${sni}"; then
-            abort_pending_config_change "自签证书生成失败"
-            sleep 2
-            return 1
-        fi
-
-        if ! get_certificate_sha256 "${HY2_CONF_DIR}/server.crt" >/dev/null; then
-            abort_pending_config_change "无法计算自签证书 SHA-256 指纹"
-            sleep 2
-            return 1
-        fi
-
-        set_tls_file_permissions
-
-        if ! write_self_signed_config "${port}" "${password}" "${masquerade_url}"; then
-            abort_pending_config_change "写入自签配置失败"
-            sleep 2
-            return 1
-        fi
-        set_server_config_permissions
-    fi
-
-    server_ip="$(fetch_server_ip)"
-    if [[ -z "${server_ip}" ]]; then
-        abort_pending_config_change "无法获取服务器 IP"
-        sleep 2
-        return 1
-    fi
-
-    if ! write_meta_info "${server_ip}" "${port}" "${password}" "${sni}" "${insecure}" "${up_mbps}" "${down_mbps}"; then
-        abort_pending_config_change "写入节点元数据失败"
-        sleep 2
-        return 1
-    fi
-    chmod 600 "${HY2_META_FILE}" >/dev/null 2>&1 || true
-
-    msg "检测到服务运行用户: $(get_service_run_user)"
-    msg "正在重启 Hysteria2 服务以应用新配置..."
-    if ! restart_service_with_rollback; then
-        sleep 2
-        return 1
-    fi
-    sleep 2
-    if systemctl is-active --quiet "${HY2_SERVICE}"; then
-        ok "Hysteria2 节点配置并启动成功！"
-    else
-        err "启动失败！可能是端口被占用，或 CA 证书申请失败。请使用菜单 (5) 查看日志。"
-        show_service_failure_hint
-        err "检测到服务未保持运行，正在尝试自动回滚到上一版配置..."
-        if restore_runtime_files && systemctl restart "${HY2_SERVICE}"; then
-            err "已自动回滚到上一版配置，本次变更未生效。"
-        else
-            err "自动回滚失败，请手动检查配置与日志。"
-        fi
-        show_recent_service_logs
-        sleep 3
-        return 1
-    fi
-    sleep 2
+diagnostic_print_result() {
+    local level="$1"
+    local text="$2"
+    case "${level}" in
+        OK)
+            echo -e "${_green}[OK]${_plain} ${text}"
+            diagnostic_log "[OK] ${text}"
+            DIAG_OK_COUNT=$((DIAG_OK_COUNT + 1))
+            ;;
+        WARN)
+            echo -e "${_yellow}[WARN]${_plain} ${text}"
+            diagnostic_log "[WARN] ${text}"
+            DIAG_WARN_COUNT=$((DIAG_WARN_COUNT + 1))
+            ;;
+        FAIL)
+            echo -e "${_red}[FAIL]${_plain} ${text}"
+            diagnostic_log "[FAIL] ${text}"
+            DIAG_FAIL_COUNT=$((DIAG_FAIL_COUNT + 1))
+            ;;
+    esac
 }
 
-# --- 4. 客户端订阅与展示模块 ---
-show_info() {
-    if ! require_meta_info; then
-        return
-    fi
-
-    local cert_sha="" cert_public_key_sha=""
-    if [[ "${insecure}" == "true" ]]; then
-        cert_sha="$(get_certificate_sha256 "${HY2_CONF_DIR}/server.crt" 2>/dev/null || true)"
-        cert_public_key_sha="$(get_certificate_public_key_sha256 "${HY2_CONF_DIR}/server.crt" 2>/dev/null || true)"
-    fi
-
-    clear
-    print_line
-    echo -e "               ${_green}--- Hysteria2 客户端配置 ---${_plain}"
-    print_line
-    echo -e "  [*] 服务器 IP : ${_yellow}${ip}${_plain}"
-    echo -e "  [*] 端口      : ${_yellow}${port}${_plain}"
-    echo -e "  [*] 密码      : ${_yellow}${password}${_plain}"
-    echo -e "  [*] SNI伪装   : ${_yellow}${sni}${_plain}"
-    echo -e "  [*] 跳过证书  : ${_yellow}${insecure}${_plain} (自签必须为true)"
-    if [[ "${insecure}" == "true" ]]; then
-        if [[ -n "${cert_sha}" ]]; then
-            echo -e "  [*] 证书指纹  : ${_yellow}${cert_sha}${_plain}"
-        else
-            echo -e "  [!] 证书指纹  : ${_red}读取失败，已禁止导出客户端链接${_plain}"
+diagnostic_add_item() {
+    local conclusion="$1"
+    local suggestion="$2"
+    local command_hint="$3"
+    local existing
+    for existing in "${DIAG_CONCLUSIONS[@]}"; do
+        if [[ "${existing}" == "${conclusion}" ]]; then
+            return 0
         fi
-        if [[ -n "${cert_public_key_sha}" ]]; then
-            echo -e "  [*] 公钥指纹  : ${_yellow}${cert_public_key_sha}${_plain} (Sing-box)"
-        else
-            echo -e "  [!] 公钥指纹  : ${_red}读取失败，已禁止导出 Sing-box 配置${_plain}"
-        fi
-    fi
-    echo -e "  [*] 上行带宽  : ${_yellow}${up_mbps}${_plain} Mbps"
-    echo -e "  [*] 下行带宽  : ${_yellow}${down_mbps}${_plain} Mbps"
-    print_line
-
-    if [[ "${insecure}" == "true" && ( -z "${cert_sha}" || -z "${cert_public_key_sha}" ) ]]; then
-        err "自签证书校验值读取失败，无法安全生成客户端配置。"
-        echo -e "  请通过主菜单 (2) 重新配置自签证书后再导出。"
-        wait_return
-        return 1
-    fi
-
-    if [[ "${insecure}" == "true" ]]; then
-        print_v2rayn_insecure_notice
-    fi
-
-    local hy2_url json_ip json_password json_sni
-    if ! hy2_url="$(render_hysteria2_share_url "${ip}" "${port}" "${password}" "${sni}" "${insecure}" "${cert_sha}")"; then
-        err "生成 Hysteria2 分享链接失败，请重新配置节点。"
-        wait_return
-        return 1
-    fi
-
-    json_ip="$(json_escape "${ip}")"
-    json_password="$(json_escape "${password}")"
-    json_sni="$(json_escape "${sni}")"
-    echo -e "${_green}[Link] 一键导入链接 (推荐 V2rayN / NekoBox / Clash):${_plain}"
-    echo -e "${hy2_url}"
-    print_line
-
-    echo -e "${_green}[JSON] Sing-box 1.13+ (Android/iOS) 专属 Outbound 模块:${_plain}"
-    if ! render_singbox_outbound_snippet "${json_ip}" "${port}" "${up_mbps}" "${down_mbps}" "${json_password}" "${json_sni}" "${insecure}" "${cert_public_key_sha}"; then
-        err "生成 Sing-box Outbound 失败，请重新配置节点。"
-        wait_return
-        return 1
-    fi
-    print_line
-    echo -e "${_green}[YAML] v2rayN / nekoray 自定义配置片段:${_plain}"
-    render_v2rayn_yaml_snippet "${ip}" "${port}" "${password}" "${up_mbps}" "${down_mbps}" "${sni}" "${insecure}" "${cert_sha}"
-    print_line
-    wait_return
+    done
+    DIAG_CONCLUSIONS+=("${conclusion}")
+    DIAG_SUGGESTIONS+=("${suggestion}")
+    DIAG_COMMANDS+=("${command_hint}")
 }
 
-show_cheatsheet() {
-    clear
-    print_line
-    echo -e "               ${_green}--- 常用指令速查 ---${_plain}"
-    print_line
-    echo -e "${_green}[服务器管理]${_plain}"
-    echo -e "bash <(curl -fsSL https://raw.githubusercontent.com/LuoPoJunZi/hysteria2-luopo/main/install.sh)"
-    echo -e "bash <(curl -fsSL https://get.hy2.sh/)"
-    echo -e "systemctl start ${HY2_SERVICE}"
-    echo -e "systemctl restart ${HY2_SERVICE}"
-    echo -e "systemctl status ${HY2_SERVICE} --no-pager -l"
-    echo -e "systemctl stop ${HY2_SERVICE}"
-    echo -e "systemctl enable ${HY2_SERVICE}"
-    echo -e "journalctl -u ${HY2_SERVICE} --no-pager -n 100 -f"
-    print_line
-    echo -e "${_green}[自签证书生成]${_plain}"
-    echo -e "openssl req -x509 -nodes -newkey ec \\"
-    echo -e "  -pkeyopt ec_paramgen_curve:prime256v1 \\"
-    echo -e "  -keyout ${HY2_CONF_DIR}/server.key -out ${HY2_CONF_DIR}/server.crt \\"
-    echo -e "  -subj \"/CN=bing.com\" -days 36500 \\"
-    echo -e "  -addext \"subjectAltName=DNS:bing.com\" \\"
-    echo -e "  -addext \"basicConstraints=critical,CA:FALSE\" \\"
-    echo -e "  -addext \"extendedKeyUsage=serverAuth\""
-    print_line
-    echo -e "${_green}[配置文件路径]${_plain}"
-    echo -e "服务配置: ${HY2_CONF_FILE}"
-    echo -e "元数据  : ${HY2_META_FILE}"
-    print_line
-    wait_return
-}
+# shellcheck shell=bash
+# 职责: Hysteria2 内核、服务、配置与网络诊断检查
 
-show_singbox_template() {
-    if ! require_meta_info; then
-        return
-    fi
-
-    local json_ip json_password json_sni cert_public_key_sha=""
-    if [[ "${insecure}" == "true" ]]; then
-        cert_public_key_sha="$(get_certificate_public_key_sha256 "${HY2_CONF_DIR}/server.crt" 2>/dev/null || true)"
-        if [[ -z "${cert_public_key_sha}" ]]; then
-            err "自签证书公钥指纹读取失败，无法安全生成 Sing-box 配置。"
-            echo -e "  请通过主菜单 (2) 重新配置自签证书后再导出。"
-            wait_return
-            return 1
-        fi
-    fi
-    json_ip="$(json_escape "${ip}")"
-    json_password="$(json_escape "${password}")"
-    json_sni="$(json_escape "${sni}")"
-
-    clear
-    print_line
-    echo -e "     ${_green}--- Sing-box 完整模板 (Android/iOS / 1.13+) ---${_plain}"
-    print_line
-    if ! render_singbox_full_template "${json_ip}" "${port}" "${up_mbps}" "${down_mbps}" "${json_password}" "${json_sni}" "${insecure}" "${cert_public_key_sha}"; then
-        err "生成 Sing-box 完整模板失败，请重新配置节点。"
-    fi
-    print_line
-    wait_return
-}
-
-show_diagnostics() {
-    local ok_count=0
-    local warn_count=0
-    local fail_count=0
-    local line_status
-    local now_ts diag_file summary_plain core_version
-    local -a diag_conclusions=()
-    local -a diag_suggestions=()
-    local -a diag_commands=()
-    now_ts="$(date '+%Y%m%d-%H%M%S')"
-    diag_file="${HY2_DIAG_DIR}/hy2-diagnose-${now_ts}.log"
-    : > "${diag_file}" 2>/dev/null || diag_file=""
-
-    diag_log() {
-        local text="$1"
-        if [[ -n "${diag_file}" ]]; then
-            echo -e "${text}" >> "${diag_file}"
-        fi
-    }
-
-    print_result() {
-        local level="$1"
-        local text="$2"
-        case "${level}" in
-            OK)
-                echo -e "${_green}[OK]${_plain} ${text}"
-                diag_log "[OK] ${text}"
-                ok_count=$((ok_count + 1))
-                ;;
-            WARN)
-                echo -e "${_yellow}[WARN]${_plain} ${text}"
-                diag_log "[WARN] ${text}"
-                warn_count=$((warn_count + 1))
-                ;;
-            FAIL)
-                echo -e "${_red}[FAIL]${_plain} ${text}"
-                diag_log "[FAIL] ${text}"
-                fail_count=$((fail_count + 1))
-                ;;
-        esac
-    }
-
-    add_diag_item() {
-        local conclusion="$1"
-        local suggestion="$2"
-        local command_hint="$3"
-        local existing
-        for existing in "${diag_conclusions[@]}"; do
-            if [[ "${existing}" == "${conclusion}" ]]; then
-                return 0
-            fi
-        done
-        diag_conclusions+=("${conclusion}")
-        diag_suggestions+=("${suggestion}")
-        diag_commands+=("${command_hint}")
-    }
-
-    clear
-    print_line
-    echo -e "             ${_green}--- 一键环境诊断 ---${_plain}"
-    print_line
-    if [[ -n "${diag_file}" ]]; then
-        diag_log "=== Hysteria2-LuoPo Diagnose @ ${now_ts} ==="
-        diag_log "config_file=${HY2_CONF_FILE}"
-        diag_log "meta_file=${HY2_META_FILE}"
-        diag_log "service=${HY2_SERVICE}"
-    fi
+diagnostic_check_core() {
+    local core_version
 
     if ensure_hy2_core_installed; then
         core_version="$(get_hy2_core_version 2>/dev/null || true)"
         if [[ -z "${core_version}" ]]; then
-            print_result "WARN" "已检测到 Hysteria2 内核，但无法读取版本。"
+            diagnostic_print_result "WARN" "已检测到 Hysteria2 内核，但无法读取版本。"
         elif version_at_least "${core_version}" "${RECOMMENDED_HY2_VERSION}"; then
-            print_result "OK" "Hysteria2 内核版本: ${core_version}。"
+            diagnostic_print_result "OK" "Hysteria2 内核版本: ${core_version}。"
         else
-            print_result "WARN" "Hysteria2 内核版本 ${core_version} 低于建议版本 v${RECOMMENDED_HY2_VERSION}。"
-            add_diag_item \
+            diagnostic_print_result "WARN" "Hysteria2 内核版本 ${core_version} 低于建议版本 v${RECOMMENDED_HY2_VERSION}。"
+            diagnostic_add_item \
                 "Hysteria2 内核版本较旧。" \
                 "建议更新，以获得移动端快速重连、IPv6 mimic 与小 MTU 稳定性修复。" \
                 "菜单 (1) 一键安装/更新 Hysteria2 内核"
         fi
     else
-        print_result "FAIL" "未检测到 Hysteria2 内核。请先执行菜单 (1)。"
-        add_diag_item \
+        diagnostic_print_result "FAIL" "未检测到 Hysteria2 内核。请先执行菜单 (1)。"
+        diagnostic_add_item \
             "未安装 Hysteria2 内核。" \
             "先安装内核，再进行节点配置与启动服务。" \
             "菜单 (1) 一键安装/更新 Hysteria2 内核"
     fi
+}
 
+diagnostic_check_service() {
     if systemctl is-enabled "${HY2_SERVICE}" >/dev/null 2>&1; then
-        print_result "OK" "服务已设置开机自启。"
+        diagnostic_print_result "OK" "服务已设置开机自启。"
     else
-        print_result "WARN" "服务未设置开机自启，可执行: systemctl enable ${HY2_SERVICE}"
-        add_diag_item \
+        diagnostic_print_result "WARN" "服务未设置开机自启，可执行: systemctl enable ${HY2_SERVICE}"
+        diagnostic_add_item \
             "服务未开启开机自启。" \
             "建议开启自启，避免重启后节点离线。" \
             "systemctl enable ${HY2_SERVICE}"
     fi
 
     if systemctl is-active --quiet "${HY2_SERVICE}"; then
-        print_result "OK" "服务当前状态: 运行中。"
+        diagnostic_print_result "OK" "服务当前状态: 运行中。"
     else
-        print_result "WARN" "服务当前未运行，可执行菜单 (4) 启动/重启。"
-        add_diag_item \
+        diagnostic_print_result "WARN" "服务当前未运行，可执行菜单 (4) 启动/重启。"
+        diagnostic_add_item \
             "服务当前未运行。" \
             "先尝试启动服务，若失败再看实时日志定位原因。" \
             "systemctl restart ${HY2_SERVICE} && journalctl -u ${HY2_SERVICE} --no-pager -n 60"
     fi
+}
 
+diagnostic_check_runtime_files() {
     if [[ -f "${HY2_CONF_FILE}" ]]; then
-        print_result "OK" "配置文件存在: ${HY2_CONF_FILE}"
+        diagnostic_print_result "OK" "配置文件存在: ${HY2_CONF_FILE}"
     else
-        print_result "FAIL" "配置文件不存在: ${HY2_CONF_FILE}"
-        add_diag_item \
+        diagnostic_print_result "FAIL" "配置文件不存在: ${HY2_CONF_FILE}"
+        diagnostic_add_item \
             "服务配置文件缺失。" \
             "重新执行节点配置生成 config.yaml。" \
             "菜单 (2) 配置 Hysteria2 节点 (CA / 自签)"
     fi
 
     if [[ -f "${HY2_META_FILE}" ]] && read_meta_info; then
-        print_result "OK" "节点元数据存在且可解析。"
+        diagnostic_print_result "OK" "节点元数据存在且可解析。"
     else
-        print_result "WARN" "节点元数据缺失或损坏，建议重新执行菜单 (2)。"
-        add_diag_item \
+        diagnostic_print_result "WARN" "节点元数据缺失或损坏，建议重新执行菜单 (2)。"
+        diagnostic_add_item \
             "节点元数据缺失或损坏。" \
             "重新生成节点配置，确保分享链接参数准确。" \
             "菜单 (2) 配置 Hysteria2 节点 (CA / 自签)"
     fi
+}
 
-    if [[ -f "${HY2_CONF_FILE}" ]]; then
-        local listen_port
-        listen_port="$(sed -n 's/^listen:[[:space:]]*:\([0-9]\+\).*/\1/p' "${HY2_CONF_FILE}" | head -n 1)"
-        if [[ -n "${listen_port}" ]]; then
-            print_result "OK" "监听端口配置为: ${listen_port}"
-            if command -v ss >/dev/null 2>&1; then
-                if ss -lun 2>/dev/null | grep -qE "[\:\.]${listen_port}[[:space:]]"; then
-                    print_result "OK" "检测到 UDP 端口 ${listen_port} 正在监听。"
-                else
-                    print_result "WARN" "未检测到 UDP 端口 ${listen_port} 监听，可能服务未启动。"
-                    add_diag_item \
-                        "未检测到 UDP 端口 ${listen_port} 监听。" \
-                        "可能服务未运行或端口被占用，请先检查服务与端口占用。" \
-                        "ss -lntup | grep -E \"[:.]${listen_port}[[:space:]]\""
-                fi
+diagnostic_check_server_config() {
+    local listen_port cert_path key_path
+
+    [[ -f "${HY2_CONF_FILE}" ]] || return 0
+
+    listen_port="$(sed -n 's/^listen:[[:space:]]*:\([0-9]\+\).*/\1/p' "${HY2_CONF_FILE}" | head -n 1)"
+    if [[ -n "${listen_port}" ]]; then
+        diagnostic_print_result "OK" "监听端口配置为: ${listen_port}"
+        if command -v ss >/dev/null 2>&1; then
+            if ss -lun 2>/dev/null | grep -qE "[\:\.]${listen_port}[[:space:]]"; then
+                diagnostic_print_result "OK" "检测到 UDP 端口 ${listen_port} 正在监听。"
             else
-                print_result "WARN" "系统未安装 ss，跳过端口监听检查。"
+                diagnostic_print_result "WARN" "未检测到 UDP 端口 ${listen_port} 监听，可能服务未启动。"
+                diagnostic_add_item \
+                    "未检测到 UDP 端口 ${listen_port} 监听。" \
+                    "可能服务未运行或端口被占用，请先检查服务与端口占用。" \
+                    "ss -lntup | grep -E \"[:.]${listen_port}[[:space:]]\""
             fi
         else
-            print_result "WARN" "未能从配置中解析 listen 端口。"
-            add_diag_item \
-                "无法从配置解析 listen 端口。" \
-                "请检查 config.yaml 语法与 listen 字段格式。" \
-                "hysteria server -c ${HY2_CONF_FILE}"
+            diagnostic_print_result "WARN" "系统未安装 ss，跳过端口监听检查。"
         fi
-
-        if grep -q '^tls:' "${HY2_CONF_FILE}"; then
-            local cert_path key_path
-            cert_path="$(sed -n 's/^[[:space:]]*cert:[[:space:]]*//p' "${HY2_CONF_FILE}" | head -n 1)"
-            key_path="$(sed -n 's/^[[:space:]]*key:[[:space:]]*//p' "${HY2_CONF_FILE}" | head -n 1)"
-            if [[ -n "${cert_path}" && -f "${cert_path}" ]]; then
-                print_result "OK" "自签证书文件存在: ${cert_path}"
-            else
-                print_result "FAIL" "自签证书文件缺失。"
-                add_diag_item \
-                    "自签证书文件缺失。" \
-                    "重新执行自签配置生成证书，或检查证书路径。" \
-                    "菜单 (2) -> 自签模式重新生成"
-            fi
-            if [[ -n "${key_path}" && -f "${key_path}" ]]; then
-                print_result "OK" "自签私钥文件存在: ${key_path}"
-            else
-                print_result "FAIL" "自签私钥文件缺失。"
-                add_diag_item \
-                    "自签私钥文件缺失。" \
-                    "重新执行自签配置生成私钥，确认文件权限可读。" \
-                    "菜单 (2) -> 自签模式重新生成"
-            fi
-        elif grep -q '^acme:' "${HY2_CONF_FILE}"; then
-            print_result "OK" "当前为 CA 证书模式。"
-        else
-            print_result "WARN" "未检测到 tls/acme 配置块，请确认配置正确。"
-            add_diag_item \
-                "配置未识别到 tls/acme 证书块。" \
-                "配置内容可能异常，建议重新生成节点配置。" \
-                "菜单 (2) 重新配置节点"
-        fi
+    else
+        diagnostic_print_result "WARN" "未能从配置中解析 listen 端口。"
+        diagnostic_add_item \
+            "无法从配置解析 listen 端口。" \
+            "请检查 config.yaml 语法与 listen 字段格式。" \
+            "hysteria server -c ${HY2_CONF_FILE}"
     fi
 
+    if grep -q '^tls:' "${HY2_CONF_FILE}"; then
+        cert_path="$(sed -n 's/^[[:space:]]*cert:[[:space:]]*//p' "${HY2_CONF_FILE}" | head -n 1)"
+        key_path="$(sed -n 's/^[[:space:]]*key:[[:space:]]*//p' "${HY2_CONF_FILE}" | head -n 1)"
+        if [[ -n "${cert_path}" && -f "${cert_path}" ]]; then
+            diagnostic_print_result "OK" "自签证书文件存在: ${cert_path}"
+        else
+            diagnostic_print_result "FAIL" "自签证书文件缺失。"
+            diagnostic_add_item \
+                "自签证书文件缺失。" \
+                "重新执行自签配置生成证书，或检查证书路径。" \
+                "菜单 (2) -> 自签模式重新生成"
+        fi
+        if [[ -n "${key_path}" && -f "${key_path}" ]]; then
+            diagnostic_print_result "OK" "自签私钥文件存在: ${key_path}"
+        else
+            diagnostic_print_result "FAIL" "自签私钥文件缺失。"
+            diagnostic_add_item \
+                "自签私钥文件缺失。" \
+                "重新执行自签配置生成私钥，确认文件权限可读。" \
+                "菜单 (2) -> 自签模式重新生成"
+        fi
+    elif grep -q '^acme:' "${HY2_CONF_FILE}"; then
+        diagnostic_print_result "OK" "当前为 CA 证书模式。"
+    else
+        diagnostic_print_result "WARN" "未检测到 tls/acme 配置块，请确认配置正确。"
+        diagnostic_add_item \
+            "配置未识别到 tls/acme 证书块。" \
+            "配置内容可能异常，建议重新生成节点配置。" \
+            "菜单 (2) 重新配置节点"
+    fi
+}
+
+diagnostic_check_public_ip() {
     local probe_ip
+
     probe_ip="$(fetch_server_ip)"
     if [[ -n "${probe_ip}" ]]; then
-        print_result "OK" "公网 IP 探测成功: ${probe_ip}"
+        diagnostic_print_result "OK" "公网 IP 探测成功: ${probe_ip}"
         if [[ -n "${ip:-}" && "${ip}" != "${probe_ip}" ]]; then
-            print_result "WARN" "元数据 IP(${ip}) 与当前探测 IP(${probe_ip}) 不一致。"
-            add_diag_item \
+            diagnostic_print_result "WARN" "元数据 IP(${ip}) 与当前探测 IP(${probe_ip}) 不一致。"
+            diagnostic_add_item \
                 "元数据 IP 与当前公网 IP 不一致。" \
                 "客户端可能连向旧 IP，建议更新客户端配置。" \
                 "菜单 (3) 重新获取分享链接并覆盖客户端配置"
         fi
     else
-        print_result "WARN" "公网 IP 探测失败，请检查网络连接。"
-        add_diag_item \
+        diagnostic_print_result "WARN" "公网 IP 探测失败，请检查网络连接。"
+        diagnostic_add_item \
             "公网 IP 探测失败。" \
             "可能是本机网络受限或 DNS 问题，先验证基础网络连通。" \
             "curl -4 https://api.ipify.org && curl -6 https://api64.ipify.org"
     fi
+}
+
+# shellcheck shell=bash
+# 职责: 诊断结果摘要、建议与报告导出
+
+diagnostic_render_summary() {
+    local line_status summary_plain idx
 
     print_line
-    if (( fail_count > 0 )); then
-        line_status="${_red}诊断结果: ${ok_count} OK / ${warn_count} WARN / ${fail_count} FAIL${_plain}"
-        summary_plain="诊断结果: ${ok_count} OK / ${warn_count} WARN / ${fail_count} FAIL"
-    elif (( warn_count > 0 )); then
-        line_status="${_yellow}诊断结果: ${ok_count} OK / ${warn_count} WARN / 0 FAIL${_plain}"
-        summary_plain="诊断结果: ${ok_count} OK / ${warn_count} WARN / 0 FAIL"
+    if (( DIAG_FAIL_COUNT > 0 )); then
+        line_status="${_red}诊断结果: ${DIAG_OK_COUNT} OK / ${DIAG_WARN_COUNT} WARN / ${DIAG_FAIL_COUNT} FAIL${_plain}"
+        summary_plain="诊断结果: ${DIAG_OK_COUNT} OK / ${DIAG_WARN_COUNT} WARN / ${DIAG_FAIL_COUNT} FAIL"
+    elif (( DIAG_WARN_COUNT > 0 )); then
+        line_status="${_yellow}诊断结果: ${DIAG_OK_COUNT} OK / ${DIAG_WARN_COUNT} WARN / 0 FAIL${_plain}"
+        summary_plain="诊断结果: ${DIAG_OK_COUNT} OK / ${DIAG_WARN_COUNT} WARN / 0 FAIL"
     else
-        line_status="${_green}诊断结果: ${ok_count} OK / 0 WARN / 0 FAIL${_plain}"
-        summary_plain="诊断结果: ${ok_count} OK / 0 WARN / 0 FAIL"
+        line_status="${_green}诊断结果: ${DIAG_OK_COUNT} OK / 0 WARN / 0 FAIL${_plain}"
+        summary_plain="诊断结果: ${DIAG_OK_COUNT} OK / 0 WARN / 0 FAIL"
     fi
     echo -e "${line_status}"
-    diag_log "${summary_plain}"
-    echo -e "${_blue}[分级]${_plain} 阻断项(FAIL): ${fail_count} | 警告项(WARN): ${warn_count} | 建议项: ${#diag_conclusions[@]}"
-    diag_log "分级: 阻断项(FAIL)=${fail_count}, 警告项(WARN)=${warn_count}, 建议项=${#diag_conclusions[@]}"
-    if (( ${#diag_conclusions[@]} > 0 )); then
-        local idx
+    diagnostic_log "${summary_plain}"
+    echo -e "${_blue}[分级]${_plain} 阻断项(FAIL): ${DIAG_FAIL_COUNT} | 警告项(WARN): ${DIAG_WARN_COUNT} | 建议项: ${#DIAG_CONCLUSIONS[@]}"
+    diagnostic_log "分级: 阻断项(FAIL)=${DIAG_FAIL_COUNT}, 警告项(WARN)=${DIAG_WARN_COUNT}, 建议项=${#DIAG_CONCLUSIONS[@]}"
+    if (( ${#DIAG_CONCLUSIONS[@]} > 0 )); then
         print_line
         echo -e "${_yellow}[诊断建议]${_plain} 结论 + 建议 + 命令"
-        diag_log "--- 诊断建议 ---"
-        for idx in "${!diag_conclusions[@]}"; do
-            echo -e "  [结论] ${diag_conclusions[${idx}]}"
-            echo -e "  [建议] ${diag_suggestions[${idx}]}"
-            echo -e "  [命令] ${diag_commands[${idx}]}"
+        diagnostic_log "--- 诊断建议 ---"
+        for idx in "${!DIAG_CONCLUSIONS[@]}"; do
+            echo -e "  [结论] ${DIAG_CONCLUSIONS[${idx}]}"
+            echo -e "  [建议] ${DIAG_SUGGESTIONS[${idx}]}"
+            echo -e "  [命令] ${DIAG_COMMANDS[${idx}]}"
             echo -e ""
-            diag_log "[结论] ${diag_conclusions[${idx}]}"
-            diag_log "[建议] ${diag_suggestions[${idx}]}"
-            diag_log "[命令] ${diag_commands[${idx}]}"
-            diag_log ""
+            diagnostic_log "[结论] ${DIAG_CONCLUSIONS[${idx}]}"
+            diagnostic_log "[建议] ${DIAG_SUGGESTIONS[${idx}]}"
+            diagnostic_log "[命令] ${DIAG_COMMANDS[${idx}]}"
+            diagnostic_log ""
         done
     fi
-    if [[ -n "${diag_file}" ]]; then
-        cp -f "${diag_file}" "${HY2_DIAG_LATEST}" >/dev/null 2>&1 || true
-        echo -e "${_blue}[信息]${_plain} 诊断报告已导出: ${diag_file}"
+    if [[ -n "${DIAG_FILE}" ]]; then
+        cp -f "${DIAG_FILE}" "${HY2_DIAG_LATEST}" >/dev/null 2>&1 || true
+        echo -e "${_blue}[信息]${_plain} 诊断报告已导出: ${DIAG_FILE}"
         echo -e "${_blue}[信息]${_plain} 最新报告快捷路径: ${HY2_DIAG_LATEST}"
     else
         echo -e "${_yellow}[提示]${_plain} 诊断报告导出失败，仅显示终端结果。"
     fi
     print_line
+}
+
+# shellcheck shell=bash
+# 职责: 环境诊断与报告查看
+
+show_diagnostics() {
+    diagnostic_reset_context
+
+    clear
+    print_line
+    echo -e "             ${_green}--- 一键环境诊断 ---${_plain}"
+    print_line
+    if [[ -n "${DIAG_FILE}" ]]; then
+        diagnostic_log "=== Hysteria2-LuoPo Diagnose @ ${DIAG_TIMESTAMP} ==="
+        diagnostic_log "config_file=${HY2_CONF_FILE}"
+        diagnostic_log "meta_file=${HY2_META_FILE}"
+        diagnostic_log "service=${HY2_SERVICE}"
+    fi
+
+    diagnostic_check_core
+
+    diagnostic_check_service
+
+    diagnostic_check_runtime_files
+
+    diagnostic_check_server_config
+
+    diagnostic_check_public_ip
+
+    diagnostic_render_summary
     wait_return
 }
 
@@ -1673,6 +1944,9 @@ show_latest_diagnostics_report() {
     print_line
     wait_return
 }
+
+# shellcheck shell=bash
+# 职责: 创建 Hysteria2 手动配置备份
 
 create_manual_backup() {
     local ts backup_dir
@@ -1722,56 +1996,54 @@ create_manual_backup() {
     return 0
 }
 
-restore_latest_manual_backup() {
-    local latest_dir
-    local backup_uses_tls=0
-    local restore_failed=0
+# shellcheck shell=bash
+# 职责: 校验并恢复最近的 Hysteria2 手动备份
 
-    latest_dir="$(ls -1dt "${HY2_BACKUP_DIR}"/manual-* 2>/dev/null | head -n 1 || true)"
-    if [[ -z "${latest_dir}" || ! -d "${latest_dir}" ]]; then
+find_latest_manual_backup() {
+    ls -1dt "${HY2_BACKUP_DIR}"/manual-* 2>/dev/null | head -n 1 || true
+}
+
+validate_manual_backup_dir() {
+    local backup_dir="$1"
+
+    if [[ -z "${backup_dir}" || ! -d "${backup_dir}" ]]; then
         err "未找到可恢复的手动备份。"
         return 1
     fi
-
-    if [[ ! -f "${latest_dir}/config.yaml" ]]; then
-        err "备份中缺少 config.yaml，已中止恢复: ${latest_dir}"
+    if [[ ! -f "${backup_dir}/config.yaml" ]]; then
+        err "备份中缺少 config.yaml，已中止恢复: ${backup_dir}"
         return 1
     fi
-
-    if grep -q '^tls:' "${latest_dir}/config.yaml"; then
-        backup_uses_tls=1
-        if [[ ! -f "${latest_dir}/server.crt" || ! -f "${latest_dir}/server.key" ]]; then
-            err "自签模式备份缺少证书或私钥，已中止恢复: ${latest_dir}"
-            return 1
-        fi
-    fi
-
-    if ! backup_runtime_files; then
-        err "无法备份当前运行配置，已中止恢复操作。"
+    if grep -q '^tls:' "${backup_dir}/config.yaml" && \
+        [[ ! -f "${backup_dir}/server.crt" || ! -f "${backup_dir}/server.key" ]]; then
+        err "自签模式备份缺少证书或私钥，已中止恢复: ${backup_dir}"
         return 1
     fi
+}
 
-    cp -p -- "${latest_dir}/config.yaml" "${HY2_CONF_FILE}" || restore_failed=1
-    if [[ -f "${latest_dir}/meta.info" ]]; then
-        cp -p -- "${latest_dir}/meta.info" "${HY2_META_FILE}" || restore_failed=1
+restore_manual_backup_files() {
+    local backup_dir="$1"
+    local backup_uses_tls="$2"
+    local restore_failed=0
+
+    cp -p -- "${backup_dir}/config.yaml" "${HY2_CONF_FILE}" || restore_failed=1
+    if [[ -f "${backup_dir}/meta.info" ]]; then
+        cp -p -- "${backup_dir}/meta.info" "${HY2_META_FILE}" || restore_failed=1
     else
         rm -f -- "${HY2_META_FILE}" || restore_failed=1
     fi
     if [[ "${backup_uses_tls}" -eq 1 ]]; then
-        cp -p -- "${latest_dir}/server.crt" "${HY2_CONF_DIR}/server.crt" || restore_failed=1
-        cp -p -- "${latest_dir}/server.key" "${HY2_CONF_DIR}/server.key" || restore_failed=1
+        cp -p -- "${backup_dir}/server.crt" "${HY2_CONF_DIR}/server.crt" || restore_failed=1
+        cp -p -- "${backup_dir}/server.key" "${HY2_CONF_DIR}/server.key" || restore_failed=1
     else
         rm -f -- "${HY2_CONF_DIR}/server.crt" "${HY2_CONF_DIR}/server.key" || restore_failed=1
     fi
 
-    if [[ "${restore_failed}" -ne 0 ]]; then
-        if restore_runtime_files; then
-            err "恢复备份文件失败，已恢复操作前配置。"
-        else
-            err "恢复备份文件失败，且无法恢复操作前配置，请立即检查 ${HY2_CONF_DIR}。"
-        fi
-        return 1
-    fi
+    [[ "${restore_failed}" -eq 0 ]]
+}
+
+set_manual_restore_permissions() {
+    local backup_uses_tls="$1"
 
     set_config_dir_permissions
     set_server_config_permissions
@@ -1781,6 +2053,35 @@ restore_latest_manual_backup() {
     if [[ "${backup_uses_tls}" -eq 1 ]]; then
         set_tls_file_permissions
     fi
+}
+
+restore_latest_manual_backup() {
+    local latest_dir
+    local backup_uses_tls=0
+
+    latest_dir="$(find_latest_manual_backup)"
+    if ! validate_manual_backup_dir "${latest_dir}"; then
+        return 1
+    fi
+    if grep -q '^tls:' "${latest_dir}/config.yaml"; then
+        backup_uses_tls=1
+    fi
+
+    if ! backup_runtime_files; then
+        err "无法备份当前运行配置，已中止恢复操作。"
+        return 1
+    fi
+
+    if ! restore_manual_backup_files "${latest_dir}" "${backup_uses_tls}"; then
+        if restore_runtime_files; then
+            err "恢复备份文件失败，已恢复操作前配置。"
+        else
+            err "恢复备份文件失败，且无法恢复操作前配置，请立即检查 ${HY2_CONF_DIR}。"
+        fi
+        return 1
+    fi
+
+    set_manual_restore_permissions "${backup_uses_tls}"
 
     if systemctl restart "${HY2_SERVICE}" >/dev/null 2>&1; then
         ok "已恢复最近备份并重启服务: ${latest_dir}"
@@ -1795,6 +2096,9 @@ restore_latest_manual_backup() {
     fi
     return 1
 }
+
+# shellcheck shell=bash
+# 职责: 手动备份与恢复菜单编排
 
 show_backup_restore_menu() {
     while true; do
@@ -1830,7 +2134,9 @@ show_backup_restore_menu() {
     done
 }
 
-# --- 5. 主菜单系统 (高兼容极客版) ---
+# shellcheck shell=bash
+# 职责: 主菜单渲染与操作分派
+
 main_menu() {
     while true; do
         clear
@@ -1901,6 +2207,9 @@ main_menu() {
         esac
     done
 }
+
+# shellcheck shell=bash
+# 职责: 管理面板启动入口
 
 # 入口运行
 if [[ "${HY2_LIB_ONLY:-0}" != "1" ]]; then

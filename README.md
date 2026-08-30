@@ -53,16 +53,26 @@
 
 ```text
 .
-├── hy2.sh                          # 主面板脚本（核心业务逻辑）
-├── install.sh                      # 安装入口脚本（远程拉取 hy2.sh）
+├── src/                            # 可维护的模块化源码
+│   ├── bootstrap.sh                # 版本、路径与默认值
+│   ├── core/                       # 输出、校验、编码、文件和元数据
+│   ├── hysteria/                   # 安装、证书、配置、权限、服务和回滚
+│   ├── clients/                    # Hysteria2、Sing-box、v2rayN 配置输出
+│   ├── operations/                 # 诊断、备份与恢复
+│   ├── panel/                      # 面板更新与主菜单
+│   └── main.sh                     # 启动入口
+├── hy2.sh                          # 自动生成的单文件发布版，请勿手工编辑
+├── install.sh                      # 安装入口，仍只部署单文件 hy2
 ├── scripts/
 │   ├── verify.sh                   # 本地/CI 一键检查入口
+│   ├── build-panel.sh              # 从 src/ 确定性生成 hy2.sh
 │   ├── check-menu-sync.sh          # 菜单与 README 一致性检查
 │   ├── check-version-sync.sh       # 版本号与 README 标识一致性检查
 │   └── smoke-e2e.sh                # 无特权端到端冒烟测试
 ├── tests/
 │   ├── e2e/
-│   │   └── config-flow.sh          # 交互配置流程回放测试
+│   │   ├── config-flow.sh          # CA/自签交互配置与回滚回放
+│   │   └── client-render.sh        # 客户端 JSON 解析与导出安全测试
 │   └── unit/
 │       └── hy2_core.bats           # 核心函数回归测试（bats）
 └── .github/workflows/
@@ -105,7 +115,7 @@ hy2
 
 ```text
 =====================================================
-  Hysteria2-LuoPo 管理面板 v26.8.27 |  快捷启动: hy2
+  Hysteria2-LuoPo 管理面板 v26.8.30 |  快捷启动: hy2
 =====================================================
   内核版本: v2.12.2    服务状态: 运行中
 -----------------------------------------------------
@@ -254,13 +264,14 @@ cd hysteria2-luopo
 ### 10.2 本地检查（每次改动后执行）
 
 ```bash
-chmod +x scripts/verify.sh
+chmod +x scripts/verify.sh scripts/build-panel.sh
 ./scripts/verify.sh
 ```
 
 `verify.sh` 会执行：
 
 - `bash -n` 语法检查
+- 模块源码与生成版 `hy2.sh` 一致性检查
 - 仓库文本规范检查（LF、文件末尾换行、尾随空白、YAML Tab）
 - `shellcheck` 静态检查（error 级）
 - 菜单与 README 预览一致性检查
@@ -269,18 +280,21 @@ chmod +x scripts/verify.sh
 - 无特权端到端冒烟测试（配置生成/元数据解析/SNI 选择/分享片段/重启失败回滚）
 - `bats` 核心函数回归测试（`tests/unit`）
 - 交互配置流程回放测试（`tests/e2e/config-flow.sh`）
+- Sing-box JSON 标准解析与客户端证书固定导出测试（`tests/e2e/client-render.sh`）
 
-### 10.3 在 `hy2.sh` 新增菜单功能的标准步骤
+### 10.3 修改源码或新增菜单功能的标准步骤
 
-1. 新增功能函数（例如 `show_xxx`）
-2. 在 `main_menu` 文案里增加菜单项
-3. 在 `case` 分支里接入调用
-4. 同步更新 `README.md` 菜单预览
-5. 运行 `./scripts/verify.sh`
+1. 在 `src/` 中找到对应职责模块，不要直接编辑生成版 `hy2.sh`
+2. 新增功能函数时放入最接近的职责模块，避免把业务逻辑写进 `main_menu`
+3. 修改菜单时同步更新 `src/panel/menu.sh` 与 README 菜单预览
+4. 执行 `bash scripts/build-panel.sh` 重新生成 `hy2.sh`
+5. 执行 `./scripts/verify.sh` 完成全部检查
 
 ### 10.4 推荐编码约定
 
 - 新功能优先封装成函数，避免把逻辑直接写进 `main_menu`
+- 每个源码文件只承担一个清晰职责；不要为了减少文件数重新堆回综合模块
+- `hy2.sh` 是构建产物，CI 会拒绝源码与生成文件不一致的提交
 - 对外部命令（`systemctl/curl/openssl`）尽量做返回码判断
 - 配置写入后统一做权限收敛
 - 影响服务可用性的改动，优先考虑回滚路径
@@ -289,12 +303,13 @@ chmod +x scripts/verify.sh
 
 ### 10.5 发布流程说明
 
-- 版本来源：`hy2.sh` 中 `sh_ver`
+- 版本来源：`src/bootstrap.sh` 中 `sh_ver`，构建时同步进入 `hy2.sh`
 - 版本号采用 `v年.月.日` 格式，例如 `v26.7.14`
 - push 到 `main` 后触发：
   - `Lint`（质量检查）
   - `Auto Release`（自动打包发布）
-- 发布包会额外校验，避免本地记忆文件、临时检查目录或已撤销的模块化文件进入正式 Release。
+- VPS 安装和菜单 `12` 自更新仍只部署单文件 `hy2.sh`，不会在服务器上动态下载模块
+- 发布包会额外校验模块源码和生成脚本，并避免本地记忆文件、临时检查目录或已撤销模块进入正式 Release
 
 ---
 

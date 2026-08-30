@@ -77,6 +77,24 @@ assert_contains_file "${HY2_META_FILE}" "insecure=false" "meta insecure mismatch
 assert_contains_file "${HY2_META_FILE}" "up_mbps=30" "meta up_mbps mismatch"
 assert_contains_file "${HY2_META_FILE}" "down_mbps=60" "meta down_mbps mismatch"
 
+echo "[INFO] Replaying config_hy2 interactive self-signed flow..."
+if [[ "${OSTYPE:-}" == msys* ]]; then
+  export MSYS2_ARG_CONV_EXCL="/CN="
+fi
+if ! config_hy2 <<< $'24457\nself-password\n\n35\n70\n2\n1\n'; then
+  fail "self-signed config_hy2 should succeed in replay flow"
+fi
+
+assert_contains_file "${HY2_CONF_FILE}" "listen: :24457" "self-signed listen port mismatch"
+assert_contains_file "${HY2_CONF_FILE}" "tls:" "self-signed tls block missing"
+[[ -f "${HY2_CONF_DIR}/server.crt" ]] || fail "self-signed certificate was not created"
+[[ -f "${HY2_CONF_DIR}/server.key" ]] || fail "self-signed private key was not created"
+assert_contains_file "${HY2_META_FILE}" "port=24457" "self-signed meta port mismatch"
+assert_contains_file "${HY2_META_FILE}" "sni=bing.com" "self-signed meta sni mismatch"
+assert_contains_file "${HY2_META_FILE}" "insecure=true" "self-signed meta insecure mismatch"
+assert_contains_file "${HY2_META_FILE}" "up_mbps=35" "self-signed meta up_mbps mismatch"
+assert_contains_file "${HY2_META_FILE}" "down_mbps=70" "self-signed meta down_mbps mismatch"
+
 echo "[INFO] Replaying pre-restart failure rollback..."
 printf "stable-config" > "${HY2_CONF_FILE}"
 printf "stable-meta" > "${HY2_META_FILE}"
