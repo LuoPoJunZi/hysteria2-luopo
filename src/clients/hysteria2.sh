@@ -31,7 +31,7 @@ render_hysteria2_share_url() {
         query+="&pinSHA256=${cert_sha}&pcs=${cert_sha}"
     fi
 
-    printf 'hysteria2://%s@%s:%s/?%s#Hysteria2-LuoPo' \
+    printf 'hysteria2://%s@%s:%s/?%s#hy2ctl' \
         "$(url_encode "${password}")" \
         "$(format_host_for_url "${ip}")" \
         "${port}" \

@@ -7,7 +7,7 @@ verify_downloaded_panel() {
     [[ -s "${file}" ]] || return 1
     head -n 1 "${file}" | grep -q '^#!/bin/bash' || return 1
     grep -q 'main_menu' "${file}" || return 1
-    grep -q 'Hysteria2-LuoPo 管理面板' "${file}" || return 1
+    grep -q 'hy2ctl 管理面板' "${file}" || return 1
     bash -n "${file}" >/dev/null 2>&1 || return 1
     downloaded_version="$(extract_panel_version "${file}")"
     [[ -n "${downloaded_version}" ]] || return 1

@@ -53,6 +53,12 @@ run_menu_sync_check() {
     bash scripts/check-menu-sync.sh
 }
 
+run_brand_sync_check() {
+    require_cmds bash git grep
+    echo "[INFO] Checking project brand/repository URL consistency..."
+    bash scripts/check-brand-sync.sh
+}
+
 run_version_sync_check() {
     require_cmds bash
     echo "[INFO] Checking version marker consistency..."
@@ -95,6 +101,7 @@ run_all() {
     run_style_checks
     run_shellcheck
     run_menu_sync_check
+    run_brand_sync_check
     run_version_sync_check
     run_release_package_check
     run_smoke_e2e_checks
@@ -109,6 +116,7 @@ case "${1:-all}" in
     style) run_style_checks ;;
     shellcheck) run_shellcheck ;;
     menu-sync) run_menu_sync_check ;;
+    brand-sync) run_brand_sync_check ;;
     version-sync) run_version_sync_check ;;
     release-package) run_release_package_check ;;
     smoke-e2e) run_smoke_e2e_checks ;;
@@ -118,7 +126,7 @@ case "${1:-all}" in
     all) run_all ;;
     *)
         echo "[ERROR] Unknown verify target: $1"
-        echo "Usage: $0 [syntax|generated-panel|style|shellcheck|menu-sync|version-sync|release-package|smoke-e2e|bats|config-flow|client-render|all]"
+        echo "Usage: $0 [syntax|generated-panel|style|shellcheck|menu-sync|brand-sync|version-sync|release-package|smoke-e2e|bats|config-flow|client-render|all]"
         exit 1
         ;;
 esac

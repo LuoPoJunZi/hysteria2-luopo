@@ -87,6 +87,7 @@ check_required_paths() {
     assert_list_contains "${list_file}" "scripts/verify.sh"
     assert_list_contains "${list_file}" "scripts/check-style.sh"
     assert_list_contains "${list_file}" "scripts/check-menu-sync.sh"
+    assert_list_contains "${list_file}" "scripts/check-brand-sync.sh"
     assert_list_contains "${list_file}" "scripts/check-version-sync.sh"
     assert_list_contains "${list_file}" "scripts/check-release-package.sh"
     assert_list_contains "${list_file}" "scripts/smoke-e2e.sh"

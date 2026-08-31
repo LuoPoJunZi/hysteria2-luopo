@@ -1,4 +1,4 @@
-# ⚡ Hysteria2-LuoPo 管理面板
+# ⚡ hy2ctl 管理面板
 
 <div align="center">
 
@@ -15,7 +15,7 @@
 
 ## 1. 这是什么？适合谁用？
 
-`hysteria2-luopo` 是一个纯 Bash 的终端管理面板，帮你把 Hysteria2 的常见操作做成菜单化流程：
+`hy2ctl` 是一个纯 Bash 的终端管理面板，帮你把 Hysteria2 的常见操作做成菜单化流程：
 
 - 安装/更新内核
 - 生成配置（CA/自签）
@@ -67,6 +67,7 @@
 │   ├── verify.sh                   # 本地/CI 一键检查入口
 │   ├── build-panel.sh              # 从 src/ 确定性生成 hy2.sh
 │   ├── check-menu-sync.sh          # 菜单与 README 一致性检查
+│   ├── check-brand-sync.sh         # 项目名称与仓库地址一致性检查
 │   ├── check-version-sync.sh       # 版本号与 README 标识一致性检查
 │   └── smoke-e2e.sh                # 无特权端到端冒烟测试
 ├── tests/
@@ -93,7 +94,7 @@ ssh root@你的服务器IP
 ### 4.2 一键安装
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/LuoPoJunZi/hysteria2-luopo/main/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/LuoPoJunZi/hy2ctl/main/install.sh)
 ```
 
 ### 4.3 打开面板
@@ -115,7 +116,7 @@ hy2
 
 ```text
 =====================================================
-  Hysteria2-LuoPo 管理面板 v26.8.30 |  快捷启动: hy2
+  hy2ctl 管理面板 v26.8.31 |  快捷启动: hy2
 =====================================================
   内核版本: v2.12.2    服务状态: 运行中
 -----------------------------------------------------
@@ -257,8 +258,8 @@ namei -l /etc/hysteria/config.yaml
 ### 10.1 开发前准备
 
 ```bash
-git clone https://github.com/LuoPoJunZi/hysteria2-luopo.git
-cd hysteria2-luopo
+git clone https://github.com/LuoPoJunZi/hy2ctl.git
+cd hy2ctl
 ```
 
 ### 10.2 本地检查（每次改动后执行）
@@ -275,6 +276,7 @@ chmod +x scripts/verify.sh scripts/build-panel.sh
 - 仓库文本规范检查（LF、文件末尾换行、尾随空白、YAML Tab）
 - `shellcheck` 静态检查（error 级）
 - 菜单与 README 预览一致性检查
+- 项目名称、仓库地址与安装/更新入口一致性检查
 - 版本号与 README 标识一致性检查
 - 发布包防污染检查（本地记忆文件、临时目录、已撤销模块化文件）
 - 无特权端到端冒烟测试（配置生成/元数据解析/SNI 选择/分享片段/重启失败回滚）

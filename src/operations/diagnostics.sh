@@ -9,7 +9,7 @@ show_diagnostics() {
     echo -e "             ${_green}--- 一键环境诊断 ---${_plain}"
     print_line
     if [[ -n "${DIAG_FILE}" ]]; then
-        diagnostic_log "=== Hysteria2-LuoPo Diagnose @ ${DIAG_TIMESTAMP} ==="
+        diagnostic_log "=== hy2ctl Diagnose @ ${DIAG_TIMESTAMP} ==="
         diagnostic_log "config_file=${HY2_CONF_FILE}"
         diagnostic_log "meta_file=${HY2_META_FILE}"
         diagnostic_log "service=${HY2_SERVICE}"

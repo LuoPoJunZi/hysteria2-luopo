@@ -150,7 +150,7 @@ grep -Fq "[建议] first suggestion" "${HY2_DIAG_LATEST}" || fail "deduplicated 
 echo "[INFO] Running share snippet checks..."
 cert_sha="0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 share_url="$(render_hysteria2_share_url "8.8.8.8" "45612" "pa ss" "bing.com" "true" "${cert_sha}")"
-assert_eq "${share_url}" "hysteria2://pa%20ss@8.8.8.8:45612/?sni=bing.com&insecure=1&pinSHA256=${cert_sha}&pcs=${cert_sha}#Hysteria2-LuoPo" "Hysteria2 share URL mismatch"
+assert_eq "${share_url}" "hysteria2://pa%20ss@8.8.8.8:45612/?sni=bing.com&insecure=1&pinSHA256=${cert_sha}&pcs=${cert_sha}#hy2ctl" "Hysteria2 share URL mismatch"
 if [[ "${share_url}" == *"insecure=true"* ]]; then
     fail "Hysteria2 share URL must use insecure=1 instead of insecure=true"
 fi
@@ -164,7 +164,7 @@ fi
 assert_eq "$(url_encode "密码")" "%E5%AF%86%E7%A0%81" "UTF-8 URL encoding mismatch"
 
 secure_share_url="$(render_hysteria2_share_url "2001:db8::1" "443" "abc123" "example.com" "false")"
-assert_eq "${secure_share_url}" "hysteria2://abc123@[2001:db8::1]:443/?sni=example.com#Hysteria2-LuoPo" "secure Hysteria2 share URL mismatch"
+assert_eq "${secure_share_url}" "hysteria2://abc123@[2001:db8::1]:443/?sni=example.com#hy2ctl" "secure Hysteria2 share URL mismatch"
 
 normalized_sha="$(normalize_certificate_sha256 "sha256 Fingerprint=01:23:45:67:89:AB:CD:EF:01:23:45:67:89:AB:CD:EF:01:23:45:67:89:AB:CD:EF:01:23:45:67:89:AB:CD:EF")"
 assert_eq "${normalized_sha}" "${cert_sha}" "certificate SHA-256 normalization mismatch"
@@ -321,7 +321,7 @@ panel_file="${tmp_dir}/hy2-valid.sh"
 cat > "${panel_file}" <<'EOF'
 #!/bin/bash
 sh_ver="v9.8.7"
-echo "Hysteria2-LuoPo 管理面板"
+echo "hy2ctl 管理面板"
 main_menu() { :; }
 EOF
 verify_downloaded_panel "${panel_file}" || fail "valid downloaded panel should pass"

@@ -19,7 +19,7 @@ if [[ "${generated_version}" != "${version}" ]]; then
     fail "Generated hy2.sh version is out of sync (${generated_version:-missing} != ${version})"
 fi
 
-readme_marker="Hysteria2-LuoPo 管理面板 ${version}"
+readme_marker="hy2ctl 管理面板 ${version}"
 
 if ! grep -Fq "${readme_marker}" README.md; then
     fail "README preview version is out of sync. Expected marker: ${readme_marker}"

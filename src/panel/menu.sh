@@ -5,7 +5,7 @@ main_menu() {
     while true; do
         clear
         print_line
-        echo -e "  ${_green}Hysteria2-LuoPo 管理面板 ${sh_ver} |  快捷启动: hy2${_plain}"
+        echo -e "  ${_green}hy2ctl 管理面板 ${sh_ver} |  快捷启动: hy2${_plain}"
         print_line
 
         local status="${_red}未运行${_plain}"

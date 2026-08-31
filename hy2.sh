@@ -1,14 +1,14 @@
 #!/bin/bash
 # 此文件同时作为生成版 hy2.sh 的开头；业务代码请修改 src/ 下对应模块。
 # ==========================================
-# 项目: Hysteria2-LuoPo 核心管理面板
+# 项目: hy2ctl 核心管理面板
 # 描述: 专为恶劣网络环境打造的极简 Hysteria2 运维脚本
 # ==========================================
 
 # 交互式主面板不启用全局 errexit，各外部命令在对应流程中显式处理失败与回滚。
 
 # --- 1. 全局变量与颜色输出 ---
-sh_ver="v26.8.30"
+sh_ver="v26.8.31"
 
 _red="\033[0;31m"
 _green="\033[0;32m"
@@ -23,7 +23,7 @@ HY2_SERVICE="hysteria-server.service"
 HY2_BACKUP_DIR="${HY2_CONF_DIR}/backup"
 HY2_DIAG_DIR="/tmp"
 HY2_DIAG_LATEST="${HY2_DIAG_DIR}/hy2-diagnose-latest.log"
-PANEL_UPDATE_URL="https://raw.githubusercontent.com/LuoPoJunZi/hysteria2-luopo/main/hy2.sh"
+PANEL_UPDATE_URL="https://raw.githubusercontent.com/LuoPoJunZi/hy2ctl/main/hy2.sh"
 PANEL_TARGET_BIN="/usr/local/bin/hy2"
 PANEL_BACKUP_PREFIX="/usr/local/bin/hy2.bak"
 HY2_INSTALL_URL="https://get.hy2.sh/"
@@ -1061,7 +1061,7 @@ render_hysteria2_share_url() {
         query+="&pinSHA256=${cert_sha}&pcs=${cert_sha}"
     fi
 
-    printf 'hysteria2://%s@%s:%s/?%s#Hysteria2-LuoPo' \
+    printf 'hysteria2://%s@%s:%s/?%s#hy2ctl' \
         "$(url_encode "${password}")" \
         "$(format_host_for_url "${ip}")" \
         "${port}" \
@@ -1506,7 +1506,7 @@ show_cheatsheet() {
     echo -e "               ${_green}--- 常用指令速查 ---${_plain}"
     print_line
     echo -e "${_green}[服务器管理]${_plain}"
-    echo -e "bash <(curl -fsSL https://raw.githubusercontent.com/LuoPoJunZi/hysteria2-luopo/main/install.sh)"
+    echo -e "bash <(curl -fsSL https://raw.githubusercontent.com/LuoPoJunZi/hy2ctl/main/install.sh)"
     echo -e "bash <(curl -fsSL https://get.hy2.sh/)"
     echo -e "systemctl start ${HY2_SERVICE}"
     echo -e "systemctl restart ${HY2_SERVICE}"
@@ -1540,7 +1540,7 @@ verify_downloaded_panel() {
     [[ -s "${file}" ]] || return 1
     head -n 1 "${file}" | grep -q '^#!/bin/bash' || return 1
     grep -q 'main_menu' "${file}" || return 1
-    grep -q 'Hysteria2-LuoPo 管理面板' "${file}" || return 1
+    grep -q 'hy2ctl 管理面板' "${file}" || return 1
     bash -n "${file}" >/dev/null 2>&1 || return 1
     downloaded_version="$(extract_panel_version "${file}")"
     [[ -n "${downloaded_version}" ]] || return 1
@@ -1909,7 +1909,7 @@ show_diagnostics() {
     echo -e "             ${_green}--- 一键环境诊断 ---${_plain}"
     print_line
     if [[ -n "${DIAG_FILE}" ]]; then
-        diagnostic_log "=== Hysteria2-LuoPo Diagnose @ ${DIAG_TIMESTAMP} ==="
+        diagnostic_log "=== hy2ctl Diagnose @ ${DIAG_TIMESTAMP} ==="
         diagnostic_log "config_file=${HY2_CONF_FILE}"
         diagnostic_log "meta_file=${HY2_META_FILE}"
         diagnostic_log "service=${HY2_SERVICE}"
@@ -2141,7 +2141,7 @@ main_menu() {
     while true; do
         clear
         print_line
-        echo -e "  ${_green}Hysteria2-LuoPo 管理面板 ${sh_ver} |  快捷启动: hy2${_plain}"
+        echo -e "  ${_green}hy2ctl 管理面板 ${sh_ver} |  快捷启动: hy2${_plain}"
         print_line
 
         local status="${_red}未运行${_plain}"

@@ -1,6 +1,6 @@
 #!/bin/bash
 # ==========================================
-# 项目: Hysteria2-LuoPo 安装与更新引导脚本
+# 项目: hy2ctl 安装与更新引导脚本
 # 描述: 下载并部署管理面板到系统级命令
 # ==========================================
 
@@ -12,7 +12,7 @@ _yellow="\033[0;33m"
 _plain="\033[0m"
 
 # GitHub 官方仓库 Raw 地址前缀
-GITHUB_RAW_URL="https://raw.githubusercontent.com/LuoPoJunZi/hysteria2-luopo/main"
+GITHUB_RAW_URL="https://raw.githubusercontent.com/LuoPoJunZi/hy2ctl/main"
 TARGET_BIN="/usr/local/bin/hy2"
 
 msg() { echo -e "${_yellow}[信息]${_plain} $1"; }
@@ -94,7 +94,7 @@ verify_downloaded_panel() {
     if ! grep -q 'main_menu' "${file}"; then
         return 1
     fi
-    if ! grep -q 'Hysteria2-LuoPo 管理面板' "${file}"; then
+    if ! grep -q 'hy2ctl 管理面板' "${file}"; then
         return 1
     fi
     if ! grep -Eq '^sh_ver="v[0-9]+\.[0-9]+\.[0-9]+"' "${file}"; then
@@ -132,7 +132,7 @@ download_panel() {
 }
 
 echo -e "${_green}=====================================================${_plain}"
-echo -e "       欢迎使用 Hysteria2-LuoPo 一键部署脚本"
+echo -e "              欢迎使用 hy2ctl 一键部署脚本"
 echo -e "${_green}=====================================================${_plain}"
 
 # 1. 检查 root 权限
@@ -151,7 +151,7 @@ if ! install_dependencies "${PKG_MANAGER}"; then
 fi
 
 # 3. 下载并覆盖核心面板脚本
-msg "正在拉取最新的 Hysteria2-LuoPo 管理面板..."
+msg "正在拉取最新的 hy2ctl 管理面板..."
 if download_panel; then
     ok "面板安装完成！"
     echo -e "-----------------------------------------------------"

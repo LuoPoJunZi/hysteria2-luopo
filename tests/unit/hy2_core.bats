@@ -311,12 +311,12 @@ EOF
   cert_sha="0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
   run render_hysteria2_share_url "8.8.8.8" "45612" "pa ss" "bing.com" "true" "${cert_sha}"
   [ "${status}" -eq 0 ]
-  [ "${output}" = "hysteria2://pa%20ss@8.8.8.8:45612/?sni=bing.com&insecure=1&pinSHA256=${cert_sha}&pcs=${cert_sha}#Hysteria2-LuoPo" ]
+  [ "${output}" = "hysteria2://pa%20ss@8.8.8.8:45612/?sni=bing.com&insecure=1&pinSHA256=${cert_sha}&pcs=${cert_sha}#hy2ctl" ]
   [[ "${output}" != *"allowInsecure"* ]]
 
   run render_hysteria2_share_url "2001:db8::1" "443" "abc123" "example.com" "false"
   [ "${status}" -eq 0 ]
-  [ "${output}" = "hysteria2://abc123@[2001:db8::1]:443/?sni=example.com#Hysteria2-LuoPo" ]
+  [ "${output}" = "hysteria2://abc123@[2001:db8::1]:443/?sni=example.com#hy2ctl" ]
 }
 
 @test "hysteria2 share URL should reject invalid insecure values" {
@@ -380,7 +380,7 @@ EOF
   cat > "${panel_file}" <<'EOF'
 #!/bin/bash
 sh_ver="v9.8.7"
-echo "Hysteria2-LuoPo 管理面板"
+echo "hy2ctl 管理面板"
 main_menu() { :; }
 EOF
 
