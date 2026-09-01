@@ -11,7 +11,7 @@ show_singbox_template() {
         cert_public_key_sha="$(get_certificate_public_key_sha256 "${HY2_CONF_DIR}/server.crt" 2>/dev/null || true)"
         if [[ -z "${cert_public_key_sha}" ]]; then
             err "自签证书公钥指纹读取失败，无法安全生成 Sing-box 配置。"
-            echo -e "  请通过主菜单 (2) 重新配置自签证书后再导出。"
+            echo -e "  请通过主菜单 (1) 重新配置自签证书后再导出。"
             wait_return
             return 1
         fi

@@ -41,7 +41,7 @@ preflight_check() {
 
 ensure_hy2_core_installed() {
     if ! command -v hysteria >/dev/null 2>&1; then
-        err "未检测到 Hysteria2 内核，请先执行菜单 (1) 安装/更新内核。"
+        err "未检测到 Hysteria2 内核，请通过菜单 (11) 安装，或重新运行一键安装脚本。"
         return 1
     fi
     return 0

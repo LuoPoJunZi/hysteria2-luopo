@@ -95,8 +95,9 @@ pick_self_signed_sni() {
 collect_hy2_certificate_settings() {
     echo -e "\n[*] 请选择证书模式："
     echo -e "  (1) CA 域名证书 (推荐，需要提前将域名解析到本 VPS)"
-    echo -e "  (2) 自签证书 (无需域名，直接使用 IP 连通)"
-    read -r -p " => 请选择 [1-2]: " HY2_DRAFT_CERT_TYPE
+    echo -e "  (2) 自签证书 (默认，无需域名，直接使用 IP 连通)"
+    read -r -p " => 请选择 [1-2] (默认 ${DEFAULT_CERT_TYPE}): " HY2_DRAFT_CERT_TYPE
+    [[ -z "${HY2_DRAFT_CERT_TYPE}" ]] && HY2_DRAFT_CERT_TYPE="${DEFAULT_CERT_TYPE}"
     if [[ "${HY2_DRAFT_CERT_TYPE}" != "1" && "${HY2_DRAFT_CERT_TYPE}" != "2" ]]; then
         err "证书模式输入无效，请输入 1 或 2。"
         sleep 2

@@ -98,6 +98,38 @@ teardown() {
   [ "${HY2_DRAFT_INSECURE}" = "false" ]
 }
 
+@test "config collectors should apply connection and self-signed defaults" {
+  reset_hy2_config_draft
+  collect_hy2_connection_settings <<< $'\n\n\n\n\n'
+  [ "$?" -eq 0 ]
+  [ "${HY2_DRAFT_PORT}" = "8443" ]
+  [[ "${HY2_DRAFT_PASSWORD}" =~ ^[0-9a-f]{32}$ ]]
+  [ "${HY2_DRAFT_MASQUERADE_URL}" = "https://bing.com" ]
+  [ "${HY2_DRAFT_UP_MBPS}" = "50" ]
+  [ "${HY2_DRAFT_DOWN_MBPS}" = "200" ]
+
+  collect_hy2_certificate_settings <<< $'\n\n'
+  [ "$?" -eq 0 ]
+  [ "${HY2_DRAFT_CERT_TYPE}" = "2" ]
+  [ "${HY2_DRAFT_SNI}" = "bing.com" ]
+  [ "${HY2_DRAFT_INSECURE}" = "true" ]
+}
+
+@test "update menu should dispatch core and panel updates" {
+  clear() { :; }
+  wait_return() { :; }
+  install_hy2_core() { echo "core-updater-called"; }
+  update_panel_script() { echo "panel-updater-called"; }
+
+  run show_update_menu <<< "1"
+  [ "${status}" -eq 0 ]
+  [[ "${output}" == *"core-updater-called"* ]]
+
+  run show_update_menu <<< "2"
+  [ "${status}" -eq 0 ]
+  [[ "${output}" == *"panel-updater-called"* ]]
+}
+
 @test "diagnostic context should count results and deduplicate suggestions" {
   diagnostic_reset_context
   diagnostic_print_result "OK" "context-ok"

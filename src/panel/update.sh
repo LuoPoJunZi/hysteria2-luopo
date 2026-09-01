@@ -104,3 +104,29 @@ update_panel_script() {
     ok "管理面板脚本已更新。重新输入 hy2 即可使用新版。"
     wait_return
 }
+
+show_update_menu() {
+    clear
+    print_line
+    echo -e "              ${_green}--- 面板与内核更新 ---${_plain}"
+    print_line
+    echo -e "    (1) 安装/更新 Hysteria2 内核"
+    echo -e "    (2) 更新 hy2ctl 管理面板"
+    echo -e "    (0) 返回主菜单"
+    print_line
+
+    local action
+    read -r -p " => 请选择操作 [0-2]: " action
+    case "${action}" in
+        1)
+            install_hy2_core
+            wait_return
+            ;;
+        2) update_panel_script ;;
+        0) return 0 ;;
+        *)
+            err "输入错误"
+            sleep 1
+            ;;
+    esac
+}

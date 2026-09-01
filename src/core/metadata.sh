@@ -44,12 +44,12 @@ read_meta_info() {
 
 require_meta_info() {
     if [[ ! -f "${HY2_META_FILE}" ]]; then
-        err "未找到节点元数据，请先执行 (2) 配置 Hysteria2 节点！"
+        err "未找到节点元数据，请先执行 (1) 配置 Hysteria2 节点！"
         sleep 2
         return 1
     fi
     if ! read_meta_info; then
-        err "节点元数据损坏或缺失，请重新执行 (2) 配置节点。"
+        err "节点元数据损坏或缺失，请重新执行 (1) 配置节点。"
         sleep 2
         return 1
     fi

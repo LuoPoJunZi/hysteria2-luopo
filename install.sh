@@ -97,6 +97,9 @@ verify_downloaded_panel() {
     if ! grep -q 'hy2ctl 管理面板' "${file}"; then
         return 1
     fi
+    if ! grep -q -- '--install-core) install_hy2_core' "${file}"; then
+        return 1
+    fi
     if ! grep -Eq '^sh_ver="v[0-9]+\.[0-9]+\.[0-9]+"' "${file}"; then
         return 1
     fi
@@ -154,6 +157,11 @@ fi
 msg "正在拉取最新的 hy2ctl 管理面板..."
 if download_panel; then
     ok "面板安装完成！"
+    msg "正在自动安装/更新 Hysteria2 内核..."
+    if ! "${TARGET_BIN}" --install-core; then
+        err "Hysteria2 内核安装/更新失败，已停止进入面板。"
+        exit 1
+    fi
     echo -e "-----------------------------------------------------"
     echo -e "👉 以后只需在终端输入 ${_green}hy2${_plain} 即可唤出管理面板！"
     echo -e "-----------------------------------------------------"

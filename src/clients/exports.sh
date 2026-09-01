@@ -7,7 +7,7 @@ ensure_client_export_material() {
 
     if [[ "${insecure}" == "true" && ( -z "${cert_sha}" || -z "${cert_public_key_sha}" ) ]]; then
         err "自签证书校验值读取失败，无法安全生成客户端配置。"
-        echo -e "  请通过主菜单 (2) 重新配置自签证书后再导出。"
+        echo -e "  请通过主菜单 (1) 重新配置自签证书后再导出。"
         wait_return
         return 1
     fi

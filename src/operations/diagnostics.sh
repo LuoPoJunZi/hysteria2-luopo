@@ -35,7 +35,7 @@ show_latest_diagnostics_report() {
     echo -e "            ${_green}--- 最近诊断报告 ---${_plain}"
     print_line
     if [[ ! -f "${HY2_DIAG_LATEST}" ]]; then
-        err "未找到最近诊断报告。请先执行菜单 (9) 一键环境诊断。"
+        err "未找到最近诊断报告。请先执行菜单 (8) 一键环境诊断。"
         print_line
         wait_return
         return

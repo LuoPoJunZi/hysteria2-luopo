@@ -28,11 +28,12 @@ PANEL_TARGET_BIN="/usr/local/bin/hy2"
 PANEL_BACKUP_PREFIX="/usr/local/bin/hy2.bak"
 HY2_INSTALL_URL="https://get.hy2.sh/"
 RECOMMENDED_HY2_VERSION="2.12.2"
-DEFAULT_PORT=443
+DEFAULT_PORT=8443
 DEFAULT_MASQUERADE_URL="https://bing.com"
 DEFAULT_SELF_SNI="bing.com"
-DEFAULT_UP_MBPS=20
-DEFAULT_DOWN_MBPS=100
+DEFAULT_UP_MBPS=50
+DEFAULT_DOWN_MBPS=200
+DEFAULT_CERT_TYPE=2
 SELF_SNI_PRESETS=("bing.com" "www.cloudflare.com" "www.apple.com" "www.microsoft.com" "www.amazon.com")
 RUNTIME_FILE_NAMES=("config.yaml" "meta.info" "server.crt" "server.key")
 
@@ -94,7 +95,7 @@ preflight_check() {
 
 ensure_hy2_core_installed() {
     if ! command -v hysteria >/dev/null 2>&1; then
-        err "未检测到 Hysteria2 内核，请先执行菜单 (1) 安装/更新内核。"
+        err "未检测到 Hysteria2 内核，请通过菜单 (11) 安装，或重新运行一键安装脚本。"
         return 1
     fi
     return 0
@@ -332,12 +333,12 @@ read_meta_info() {
 
 require_meta_info() {
     if [[ ! -f "${HY2_META_FILE}" ]]; then
-        err "未找到节点元数据，请先执行 (2) 配置 Hysteria2 节点！"
+        err "未找到节点元数据，请先执行 (1) 配置 Hysteria2 节点！"
         sleep 2
         return 1
     fi
     if ! read_meta_info; then
-        err "节点元数据损坏或缺失，请重新执行 (2) 配置节点。"
+        err "节点元数据损坏或缺失，请重新执行 (1) 配置节点。"
         sleep 2
         return 1
     fi
@@ -823,8 +824,9 @@ pick_self_signed_sni() {
 collect_hy2_certificate_settings() {
     echo -e "\n[*] 请选择证书模式："
     echo -e "  (1) CA 域名证书 (推荐，需要提前将域名解析到本 VPS)"
-    echo -e "  (2) 自签证书 (无需域名，直接使用 IP 连通)"
-    read -r -p " => 请选择 [1-2]: " HY2_DRAFT_CERT_TYPE
+    echo -e "  (2) 自签证书 (默认，无需域名，直接使用 IP 连通)"
+    read -r -p " => 请选择 [1-2] (默认 ${DEFAULT_CERT_TYPE}): " HY2_DRAFT_CERT_TYPE
+    [[ -z "${HY2_DRAFT_CERT_TYPE}" ]] && HY2_DRAFT_CERT_TYPE="${DEFAULT_CERT_TYPE}"
     if [[ "${HY2_DRAFT_CERT_TYPE}" != "1" && "${HY2_DRAFT_CERT_TYPE}" != "2" ]]; then
         err "证书模式输入无效，请输入 1 或 2。"
         sleep 2
@@ -959,7 +961,7 @@ activate_hy2_config() {
     if systemctl is-active --quiet "${HY2_SERVICE}"; then
         ok "Hysteria2 节点配置并启动成功！"
     else
-        err "启动失败！可能是端口被占用，或 CA 证书申请失败。请使用菜单 (5) 查看日志。"
+        err "启动失败！可能是端口被占用，或 CA 证书申请失败。请使用菜单 (4) 查看日志。"
         show_service_failure_hint
         err "检测到服务未保持运行，正在尝试自动回滚到上一版配置..."
         if restore_runtime_files && systemctl restart "${HY2_SERVICE}"; then
@@ -1318,7 +1320,7 @@ show_singbox_template() {
         cert_public_key_sha="$(get_certificate_public_key_sha256 "${HY2_CONF_DIR}/server.crt" 2>/dev/null || true)"
         if [[ -z "${cert_public_key_sha}" ]]; then
             err "自签证书公钥指纹读取失败，无法安全生成 Sing-box 配置。"
-            echo -e "  请通过主菜单 (2) 重新配置自签证书后再导出。"
+            echo -e "  请通过主菜单 (1) 重新配置自签证书后再导出。"
             wait_return
             return 1
         fi
@@ -1431,7 +1433,7 @@ ensure_client_export_material() {
 
     if [[ "${insecure}" == "true" && ( -z "${cert_sha}" || -z "${cert_public_key_sha}" ) ]]; then
         err "自签证书校验值读取失败，无法安全生成客户端配置。"
-        echo -e "  请通过主菜单 (2) 重新配置自签证书后再导出。"
+        echo -e "  请通过主菜单 (1) 重新配置自签证书后再导出。"
         wait_return
         return 1
     fi
@@ -1507,6 +1509,7 @@ show_cheatsheet() {
     print_line
     echo -e "${_green}[服务器管理]${_plain}"
     echo -e "bash <(curl -fsSL https://raw.githubusercontent.com/LuoPoJunZi/hy2ctl/main/install.sh)"
+    echo -e "hy2 --install-core"
     echo -e "bash <(curl -fsSL https://get.hy2.sh/)"
     echo -e "systemctl start ${HY2_SERVICE}"
     echo -e "systemctl restart ${HY2_SERVICE}"
@@ -1638,6 +1641,32 @@ update_panel_script() {
     wait_return
 }
 
+show_update_menu() {
+    clear
+    print_line
+    echo -e "              ${_green}--- 面板与内核更新 ---${_plain}"
+    print_line
+    echo -e "    (1) 安装/更新 Hysteria2 内核"
+    echo -e "    (2) 更新 hy2ctl 管理面板"
+    echo -e "    (0) 返回主菜单"
+    print_line
+
+    local action
+    read -r -p " => 请选择操作 [0-2]: " action
+    case "${action}" in
+        1)
+            install_hy2_core
+            wait_return
+            ;;
+        2) update_panel_script ;;
+        0) return 0 ;;
+        *)
+            err "输入错误"
+            sleep 1
+            ;;
+    esac
+}
+
 # shellcheck shell=bash
 # 职责: 诊断上下文、计数与建议去重
 
@@ -1714,14 +1743,14 @@ diagnostic_check_core() {
             diagnostic_add_item \
                 "Hysteria2 内核版本较旧。" \
                 "建议更新，以获得移动端快速重连、IPv6 mimic 与小 MTU 稳定性修复。" \
-                "菜单 (1) 一键安装/更新 Hysteria2 内核"
+                "菜单 (11) -> 安装/更新 Hysteria2 内核"
         fi
     else
-        diagnostic_print_result "FAIL" "未检测到 Hysteria2 内核。请先执行菜单 (1)。"
+        diagnostic_print_result "FAIL" "未检测到 Hysteria2 内核，请通过菜单 (11) 安装。"
         diagnostic_add_item \
             "未安装 Hysteria2 内核。" \
             "先安装内核，再进行节点配置与启动服务。" \
-            "菜单 (1) 一键安装/更新 Hysteria2 内核"
+            "菜单 (11) -> 安装/更新 Hysteria2 内核"
     fi
 }
 
@@ -1739,7 +1768,7 @@ diagnostic_check_service() {
     if systemctl is-active --quiet "${HY2_SERVICE}"; then
         diagnostic_print_result "OK" "服务当前状态: 运行中。"
     else
-        diagnostic_print_result "WARN" "服务当前未运行，可执行菜单 (4) 启动/重启。"
+        diagnostic_print_result "WARN" "服务当前未运行，可执行菜单 (3) 启动/重启。"
         diagnostic_add_item \
             "服务当前未运行。" \
             "先尝试启动服务，若失败再看实时日志定位原因。" \
@@ -1755,17 +1784,17 @@ diagnostic_check_runtime_files() {
         diagnostic_add_item \
             "服务配置文件缺失。" \
             "重新执行节点配置生成 config.yaml。" \
-            "菜单 (2) 配置 Hysteria2 节点 (CA / 自签)"
+            "菜单 (1) 配置 Hysteria2 节点 (CA / 自签)"
     fi
 
     if [[ -f "${HY2_META_FILE}" ]] && read_meta_info; then
         diagnostic_print_result "OK" "节点元数据存在且可解析。"
     else
-        diagnostic_print_result "WARN" "节点元数据缺失或损坏，建议重新执行菜单 (2)。"
+        diagnostic_print_result "WARN" "节点元数据缺失或损坏，建议重新执行菜单 (1)。"
         diagnostic_add_item \
             "节点元数据缺失或损坏。" \
             "重新生成节点配置，确保分享链接参数准确。" \
-            "菜单 (2) 配置 Hysteria2 节点 (CA / 自签)"
+            "菜单 (1) 配置 Hysteria2 节点 (CA / 自签)"
     fi
 }
 
@@ -1808,7 +1837,7 @@ diagnostic_check_server_config() {
             diagnostic_add_item \
                 "自签证书文件缺失。" \
                 "重新执行自签配置生成证书，或检查证书路径。" \
-                "菜单 (2) -> 自签模式重新生成"
+                "菜单 (1) -> 自签模式重新生成"
         fi
         if [[ -n "${key_path}" && -f "${key_path}" ]]; then
             diagnostic_print_result "OK" "自签私钥文件存在: ${key_path}"
@@ -1817,7 +1846,7 @@ diagnostic_check_server_config() {
             diagnostic_add_item \
                 "自签私钥文件缺失。" \
                 "重新执行自签配置生成私钥，确认文件权限可读。" \
-                "菜单 (2) -> 自签模式重新生成"
+                "菜单 (1) -> 自签模式重新生成"
         fi
     elif grep -q '^acme:' "${HY2_CONF_FILE}"; then
         diagnostic_print_result "OK" "当前为 CA 证书模式。"
@@ -1826,7 +1855,7 @@ diagnostic_check_server_config() {
         diagnostic_add_item \
             "配置未识别到 tls/acme 证书块。" \
             "配置内容可能异常，建议重新生成节点配置。" \
-            "菜单 (2) 重新配置节点"
+            "菜单 (1) 重新配置节点"
     fi
 }
 
@@ -1841,7 +1870,7 @@ diagnostic_check_public_ip() {
             diagnostic_add_item \
                 "元数据 IP 与当前公网 IP 不一致。" \
                 "客户端可能连向旧 IP，建议更新客户端配置。" \
-                "菜单 (3) 重新获取分享链接并覆盖客户端配置"
+                "菜单 (2) 重新获取分享链接并覆盖客户端配置"
         fi
     else
         diagnostic_print_result "WARN" "公网 IP 探测失败，请检查网络连接。"
@@ -1935,7 +1964,7 @@ show_latest_diagnostics_report() {
     echo -e "            ${_green}--- 最近诊断报告 ---${_plain}"
     print_line
     if [[ ! -f "${HY2_DIAG_LATEST}" ]]; then
-        err "未找到最近诊断报告。请先执行菜单 (9) 一键环境诊断。"
+        err "未找到最近诊断报告。请先执行菜单 (8) 一键环境诊断。"
         print_line
         wait_return
         return
@@ -2158,50 +2187,48 @@ main_menu() {
         echo -e "  内核版本: ${core_version}    服务状态: ${status}"
         print_sub_line
         echo -e "  节点核心管理"
-        echo -e "    (1)  一键安装/更新 Hysteria2 内核"
-        echo -e "    (2)  配置 Hysteria2 节点 (CA / 自签)"
-        echo -e "    (3)  查看客户端配置与分享链接"
+        echo -e "    (1)  节点配置（CA / 自签）"
+        echo -e "    (2)  客户端配置与分享"
         echo -e ""
         echo -e "  服务运行控制"
-        echo -e "    (4)  启动 / 停止 / 重启 / 状态"
-        echo -e "    (5)  查看实时运行日志"
-        echo -e "    (6)  完全卸载清理"
-        echo -e "    (7)  查看常用指令速查"
-        echo -e "    (8)  查看 Sing-box 完整模板"
-        echo -e "    (9)  一键环境诊断"
-        echo -e "    (10) 查看最近诊断报告"
-        echo -e "    (11) 配置备份与恢复"
-        echo -e "    (12) 更新管理面板脚本"
+        echo -e "    (3)  服务启动与控制"
+        echo -e "    (4)  实时运行日志"
+        echo -e "    (5)  完全卸载清理"
+        echo -e "    (6)  常用指令速查"
+        echo -e "    (7)  Sing-box 完整模板"
+        echo -e "    (8)  一键环境诊断"
+        echo -e "    (9)  最近诊断报告"
+        echo -e "    (10) 配置备份与恢复"
+        echo -e "    (11) 面板与内核更新"
         echo -e "    (0)  退出面板"
         print_line
 
-        read -r -p " => 请选择操作 [0-12]: " menu_num
+        read -r -p " => 请选择操作 [0-11]: " menu_num
 
         case "${menu_num}" in
-            1) install_hy2_core; sleep 2 ;;
-            2) config_hy2 ;;
-            3) show_info ;;
-            4)
+            1) config_hy2 ;;
+            2) show_info ;;
+            3)
                 if ensure_hy2_core_installed; then
                     service_control_menu
                 else
                     sleep 2
                 fi
                 ;;
-            5)
+            4)
                 if ensure_hy2_core_installed; then
                     journalctl -u "${HY2_SERVICE}" --no-pager -n 100 -f
                 else
                     sleep 2
                 fi
                 ;;
-            6) uninstall_hy2 ;;
-            7) show_cheatsheet ;;
-            8) show_singbox_template ;;
-            9) show_diagnostics ;;
-            10) show_latest_diagnostics_report ;;
-            11) show_backup_restore_menu ;;
-            12) update_panel_script ;;
+            5) uninstall_hy2 ;;
+            6) show_cheatsheet ;;
+            7) show_singbox_template ;;
+            8) show_diagnostics ;;
+            9) show_latest_diagnostics_report ;;
+            10) show_backup_restore_menu ;;
+            11) show_update_menu ;;
             0) exit 0 ;;
             *) err "输入错误"; sleep 1 ;;
         esac
@@ -2215,5 +2242,12 @@ main_menu() {
 if [[ "${HY2_LIB_ONLY:-0}" != "1" ]]; then
     require_root
     preflight_check
-    main_menu
+    case "${1:-}" in
+        --install-core) install_hy2_core ;;
+        "") main_menu ;;
+        *)
+            err "未知参数: $1"
+            exit 1
+            ;;
+    esac
 fi

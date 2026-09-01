@@ -5,5 +5,12 @@
 if [[ "${HY2_LIB_ONLY:-0}" != "1" ]]; then
     require_root
     preflight_check
-    main_menu
+    case "${1:-}" in
+        --install-core) install_hy2_core ;;
+        "") main_menu ;;
+        *)
+            err "未知参数: $1"
+            exit 1
+            ;;
+    esac
 fi

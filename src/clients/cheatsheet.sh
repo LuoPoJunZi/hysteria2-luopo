@@ -8,6 +8,7 @@ show_cheatsheet() {
     print_line
     echo -e "${_green}[服务器管理]${_plain}"
     echo -e "bash <(curl -fsSL https://raw.githubusercontent.com/LuoPoJunZi/hy2ctl/main/install.sh)"
+    echo -e "hy2 --install-core"
     echo -e "bash <(curl -fsSL https://get.hy2.sh/)"
     echo -e "systemctl start ${HY2_SERVICE}"
     echo -e "systemctl restart ${HY2_SERVICE}"

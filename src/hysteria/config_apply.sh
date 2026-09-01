@@ -97,7 +97,7 @@ activate_hy2_config() {
     if systemctl is-active --quiet "${HY2_SERVICE}"; then
         ok "Hysteria2 节点配置并启动成功！"
     else
-        err "启动失败！可能是端口被占用，或 CA 证书申请失败。请使用菜单 (5) 查看日志。"
+        err "启动失败！可能是端口被占用，或 CA 证书申请失败。请使用菜单 (4) 查看日志。"
         show_service_failure_hint
         err "检测到服务未保持运行，正在尝试自动回滚到上一版配置..."
         if restore_runtime_files && systemctl restart "${HY2_SERVICE}"; then

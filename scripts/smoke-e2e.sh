@@ -134,6 +134,30 @@ assert_eq "${HY2_DRAFT_EMAIL}" "admin@example.com" "draft default email mismatch
 assert_eq "${HY2_DRAFT_SNI}" "example.com" "draft CA SNI mismatch"
 assert_eq "${HY2_DRAFT_INSECURE}" "false" "draft CA security mode mismatch"
 
+reset_hy2_config_draft
+collect_hy2_connection_settings <<< $'\n\n\n\n\n'
+assert_eq "${HY2_DRAFT_PORT}" "8443" "default draft port mismatch"
+[[ "${HY2_DRAFT_PASSWORD}" =~ ^[0-9a-f]{32}$ ]] || fail "default draft password format mismatch"
+assert_eq "${HY2_DRAFT_MASQUERADE_URL}" "https://bing.com" "default draft masquerade URL mismatch"
+assert_eq "${HY2_DRAFT_UP_MBPS}" "50" "default draft upload bandwidth mismatch"
+assert_eq "${HY2_DRAFT_DOWN_MBPS}" "200" "default draft download bandwidth mismatch"
+
+collect_hy2_certificate_settings <<< $'\n\n'
+assert_eq "${HY2_DRAFT_CERT_TYPE}" "2" "default draft certificate mode mismatch"
+assert_eq "${HY2_DRAFT_SNI}" "bing.com" "default draft self-signed SNI mismatch"
+assert_eq "${HY2_DRAFT_INSECURE}" "true" "default draft self-signed security mode mismatch"
+
+echo "[INFO] Running update submenu checks..."
+clear() { :; }
+wait_return() { :; }
+__mock_update_action=""
+install_hy2_core() { __mock_update_action="core"; }
+update_panel_script() { __mock_update_action="panel"; }
+show_update_menu <<< "1"
+assert_eq "${__mock_update_action}" "core" "update submenu core dispatch mismatch"
+show_update_menu <<< "2"
+assert_eq "${__mock_update_action}" "panel" "update submenu panel dispatch mismatch"
+
 echo "[INFO] Running diagnostic context checks..."
 diagnostic_reset_context
 diagnostic_print_result "OK" "context-ok"

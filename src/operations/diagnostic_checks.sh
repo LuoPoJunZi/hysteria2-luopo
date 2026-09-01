@@ -15,14 +15,14 @@ diagnostic_check_core() {
             diagnostic_add_item \
                 "Hysteria2 内核版本较旧。" \
                 "建议更新，以获得移动端快速重连、IPv6 mimic 与小 MTU 稳定性修复。" \
-                "菜单 (1) 一键安装/更新 Hysteria2 内核"
+                "菜单 (11) -> 安装/更新 Hysteria2 内核"
         fi
     else
-        diagnostic_print_result "FAIL" "未检测到 Hysteria2 内核。请先执行菜单 (1)。"
+        diagnostic_print_result "FAIL" "未检测到 Hysteria2 内核，请通过菜单 (11) 安装。"
         diagnostic_add_item \
             "未安装 Hysteria2 内核。" \
             "先安装内核，再进行节点配置与启动服务。" \
-            "菜单 (1) 一键安装/更新 Hysteria2 内核"
+            "菜单 (11) -> 安装/更新 Hysteria2 内核"
     fi
 }
 
@@ -40,7 +40,7 @@ diagnostic_check_service() {
     if systemctl is-active --quiet "${HY2_SERVICE}"; then
         diagnostic_print_result "OK" "服务当前状态: 运行中。"
     else
-        diagnostic_print_result "WARN" "服务当前未运行，可执行菜单 (4) 启动/重启。"
+        diagnostic_print_result "WARN" "服务当前未运行，可执行菜单 (3) 启动/重启。"
         diagnostic_add_item \
             "服务当前未运行。" \
             "先尝试启动服务，若失败再看实时日志定位原因。" \
@@ -56,17 +56,17 @@ diagnostic_check_runtime_files() {
         diagnostic_add_item \
             "服务配置文件缺失。" \
             "重新执行节点配置生成 config.yaml。" \
-            "菜单 (2) 配置 Hysteria2 节点 (CA / 自签)"
+            "菜单 (1) 配置 Hysteria2 节点 (CA / 自签)"
     fi
 
     if [[ -f "${HY2_META_FILE}" ]] && read_meta_info; then
         diagnostic_print_result "OK" "节点元数据存在且可解析。"
     else
-        diagnostic_print_result "WARN" "节点元数据缺失或损坏，建议重新执行菜单 (2)。"
+        diagnostic_print_result "WARN" "节点元数据缺失或损坏，建议重新执行菜单 (1)。"
         diagnostic_add_item \
             "节点元数据缺失或损坏。" \
             "重新生成节点配置，确保分享链接参数准确。" \
-            "菜单 (2) 配置 Hysteria2 节点 (CA / 自签)"
+            "菜单 (1) 配置 Hysteria2 节点 (CA / 自签)"
     fi
 }
 
@@ -109,7 +109,7 @@ diagnostic_check_server_config() {
             diagnostic_add_item \
                 "自签证书文件缺失。" \
                 "重新执行自签配置生成证书，或检查证书路径。" \
-                "菜单 (2) -> 自签模式重新生成"
+                "菜单 (1) -> 自签模式重新生成"
         fi
         if [[ -n "${key_path}" && -f "${key_path}" ]]; then
             diagnostic_print_result "OK" "自签私钥文件存在: ${key_path}"
@@ -118,7 +118,7 @@ diagnostic_check_server_config() {
             diagnostic_add_item \
                 "自签私钥文件缺失。" \
                 "重新执行自签配置生成私钥，确认文件权限可读。" \
-                "菜单 (2) -> 自签模式重新生成"
+                "菜单 (1) -> 自签模式重新生成"
         fi
     elif grep -q '^acme:' "${HY2_CONF_FILE}"; then
         diagnostic_print_result "OK" "当前为 CA 证书模式。"
@@ -127,7 +127,7 @@ diagnostic_check_server_config() {
         diagnostic_add_item \
             "配置未识别到 tls/acme 证书块。" \
             "配置内容可能异常，建议重新生成节点配置。" \
-            "菜单 (2) 重新配置节点"
+            "菜单 (1) 重新配置节点"
     fi
 }
 
@@ -142,7 +142,7 @@ diagnostic_check_public_ip() {
             diagnostic_add_item \
                 "元数据 IP 与当前公网 IP 不一致。" \
                 "客户端可能连向旧 IP，建议更新客户端配置。" \
-                "菜单 (3) 重新获取分享链接并覆盖客户端配置"
+                "菜单 (2) 重新获取分享链接并覆盖客户端配置"
         fi
     else
         diagnostic_print_result "WARN" "公网 IP 探测失败，请检查网络连接。"
